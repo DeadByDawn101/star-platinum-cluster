@@ -1,0 +1,39 @@
+core:
+  primary_model: ollama/qwen2.5:14b
+  upgrade_target: ollama/qwen2.5:72b
+  local_required: true
+
+fallbacks:
+  - anthropic/claude-sonnet-4-6
+  - openai-codex/gpt-5.3-codex
+  - xai/grok-4
+  - google/gemini-2.0-flash
+  - minimax-portal/MiniMax-M2.5
+  - venice/llama-3.3-70b
+  - openrouter/auto
+
+routing:
+  local_inference:
+    match:
+      - type: chat
+      - type: routine
+    target: core.primary_model
+
+  ane_jobs:
+    match:
+      - type: embedding_train
+      - type: tiny_finetune
+      - type: kernel_benchmark
+    target: ane_worker
+
+  hosted_heavy:
+    match:
+      - type: long_context
+      - type: multi_tool_complex
+      - type: high_reasoning
+    target: fallbacks[0]
+
+  failover:
+    on_local_error: true
+    on_timeout_ms: 12000
+    fallback_chain: fallbacks
