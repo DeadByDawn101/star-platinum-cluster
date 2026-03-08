@@ -9,10 +9,12 @@ Local-first AI cluster orchestration for RavenX.
 - Prepare TB4 transport layer for high-speed data movement
 
 ## v0 Components
-- `services/scheduler`: policy router (local Qwen -> hosted fallback)
+- `services/scheduler`: policy router (local Qwen -> directreduce/ANE -> hosted fallback)
 - `services/ane_worker`: ANE job wrapper (compile/eval/train hooks)
+- `services/directreduce`: all-reduce offload service (software v0)
 - `configs/routing.yaml`: model/resource routing policy
 - `docs/ARCHITECTURE.md`: cluster topology + rollout plan
+- `docs/DIRECTREDUCE-ADAPTATION.md`: deep-dive + application of DirectReduce paper
 
 ## Quick start
 ```bash

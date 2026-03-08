@@ -31,6 +31,9 @@ class Scheduler:
         if task.task_type in {"embedding_train", "tiny_finetune", "kernel_benchmark"}:
             return {"route": "ane_worker", "reason": "ANE-eligible training/compute task"}
 
+        if task.task_type in {"all_reduce", "gradient_sync", "state_sync"}:
+            return {"route": "directreduce", "reason": "Collective sync offload path"}
+
         if task.task_type in {"long_context", "multi_tool_complex", "high_reasoning"}:
             return {"route": "hosted", "model": self.fallbacks[0], "reason": "High reasoning/context"}
 
