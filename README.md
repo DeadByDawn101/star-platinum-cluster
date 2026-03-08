@@ -51,3 +51,11 @@ curl -s http://127.0.0.1:9090/route \
 3. ANE worker integration with compile cache
 4. TB4 data plane shim (checkpoint/batch movement)
 5. Unified metrics + failover controller
+
+## Cluster registry API
+- `GET /health`
+- `GET /nodes`
+- `POST /nodes/register`
+- `POST /route`
+
+See `docs/NODE-ONBOARDING.md` for one-by-one node registration flow.
