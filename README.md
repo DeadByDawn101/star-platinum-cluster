@@ -59,3 +59,4 @@ curl -s http://127.0.0.1:9090/route \
 - `POST /route`
 
 See `docs/NODE-ONBOARDING.md` for one-by-one node registration flow.
+Heretic local setup: `docs/HERETIC-SETUP.md`.
