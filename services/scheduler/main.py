@@ -20,7 +20,7 @@ class Task:
 
 class Scheduler:
     def __init__(self) -> None:
-        self.core_model = os.getenv("SPC_CORE_MODEL", "ollama/qwen2.5:14b")
+        self.core_model = os.getenv("SPC_CORE_MODEL", "ollama/qwen2.5:32b")
         self.fallbacks: List[str] = [
             "anthropic/claude-sonnet-4-6",
             "openai-codex/gpt-5.3-codex",

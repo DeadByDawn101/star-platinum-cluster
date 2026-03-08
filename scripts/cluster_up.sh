@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.run/logs"
 PID_DIR="$ROOT_DIR/.run/pids"
+
+# Default local core model (can be overridden by caller)
+export SPC_CORE_MODEL="ollama/qwen2.5:32b"
 mkdir -p "$LOG_DIR" "$PID_DIR"
 
 start_service() {

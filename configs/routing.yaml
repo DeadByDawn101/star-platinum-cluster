@@ -1,6 +1,6 @@
 core:
-  primary_model: ollama/qwen2.5:14b
-  upgrade_target: ollama/qwen2.5:72b
+  primary_model: ollama/qwen2.5:32b
+  upgrade_target: ollama/qwen2.5:32b
   local_required: true
 
 fallbacks:
