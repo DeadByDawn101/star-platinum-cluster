@@ -16,6 +16,11 @@
 - https://github.com/adamghaleb/apple-neural-engine
   - Alternate ANE training implementation reference
 
+## Core infra add-on (beast Linux server)
+- https://github.com/linux-rdma/rdma-core
+  - canonical Linux RDMA userspace stack (`libibverbs`, `librdmacm`, providers/tools)
+  - required for native RDMA backend experiments in DirectReduce on beast node
+
 ## Next actions
 1. Pull code from tb_rdma + thundercollective patterns into TB4 transport design doc
 2. Build adapter layer around ANE `train_large` / kernel scripts
@@ -23,3 +28,4 @@
    - local Qwen-only
    - Qwen + ANE
    - Qwen + ANE + cloud fallback
+4. Bootstrap beast node RDMA with `rdma-core` and validate `ibv_devinfo`/`rdma link show`
