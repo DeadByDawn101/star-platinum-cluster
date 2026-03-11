@@ -17,14 +17,28 @@ routing:
     match:
       - type: chat
       - type: routine
+      - type: low_complexity
     target: core.primary_model
 
-  ane_jobs:
+  ane_training:
     match:
       - type: embedding_train
       - type: tiny_finetune
       - type: kernel_benchmark
-    target: ane_worker
+      - type: matrix_multiply
+    routing_logic: node_registry_select
+    preferred_capabilities: [ane, train]
+    fallback_to: ane_worker
+    min_nodes_required: 1
+
+  rdma_allreduce:
+    match:
+      - type: all_reduce
+      - type: high_throughput_comms
+    routing_logic: node_registry_select
+    preferred_capabilities: [rdma, allreduce]
+    fallback_to: directreduce_service
+    min_nodes_required: 1
 
   hosted_heavy:
     match:
