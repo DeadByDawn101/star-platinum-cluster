@@ -68,7 +68,42 @@ The iMac Pro should be recategorized from "TB4 control center" to:
 - **~54 TFLOPS GPU**: 40-core Metal 4 GPU. Handles decode phase in hybrid ANE-prefill/GPU-decode strategy.
 - **546 GB/s bandwidth**: Feeds ANE + GPU without bottleneck for large model inference.
 
-## Node 3: Mac Node 2 (ANE Worker) — PENDING SPECS
+## Node 3: MacBook Pro M3 (ANE Worker)
+
+| Spec | Value |
+|------|-------|
+| **Model** | MacBook Pro (14-inch, M3, Late 2023) |
+| **Model ID** | Mac15,3 (A2918) |
+| **Chip** | Apple M3 (base) |
+| **CPU** | 8-core (4 Performance + 4 Efficiency), 4.05 GHz |
+| **GPU** | 10-core Apple GPU, Metal 4 |
+| **GPU Compute** | ~3.6 TFLOPS FP32 / ~7 TFLOPS FP16 (estimated) |
+| **Neural Engine** | 16-core ANE, 18 TOPS INT8 / **9 TFLOPS FP16 true** |
+| **Memory** | 24 GB unified LPDDR5 |
+| **Memory Bandwidth** | 100 GB/s |
+| **Storage** | 2 TB SSD |
+| **Thunderbolt** | **2× Thunderbolt 4** (USB-C), 40 Gbps |
+| **HDMI** | 1× HDMI 2.1 |
+| **Wi-Fi** | Wi-Fi 6E (802.11ax) |
+| **Bluetooth** | 5.3 |
+| **Display** | 14.2" 3024×1964 Liquid Retina XDR |
+
+### Cluster role implications
+
+- **Base M3, NOT M3 Pro/Max**: This is the entry-level chip. Only 8 CPU cores, 10 GPU cores, 24 GB RAM. Significantly less capable than the M4 Max brain.
+- **Only 2× Thunderbolt 4** (not TB5): 40 Gbps, same as iMac Pro TB3. The M4 Max has 3× TB5 at 120 Gbps — the link from M4 Max to this node will be bottlenecked at 40 Gbps by this end.
+- **9 TFLOPS FP16 ANE**: Half the M4 Max's ANE throughput. Still useful but not a powerhouse. The M3 ANE is the same 16-core design but clocked lower.
+- **24 GB memory**: Can hold ~12B parameter models. Too small for 32B+ without sharding.
+- **100 GB/s bandwidth**: 5.5× slower than M4 Max. Will bottleneck large model inference.
+- **2 TB storage**: Plenty for model caches and checkpoints.
+
+### Revised cluster role
+
+Original plan called this "ANE worker" with assumed M4-class specs. Reality check:
+- **Light ANE compute node**: 9 TFLOPS ANE, useful for pipeline parallel shards of smaller layers
+- **Overflow storage**: 2 TB SSD for model/checkpoint staging
+- **Pipeline parallel tail**: In a 2-node pipeline (M4 Max + M3), the M3 handles the last N layers proportional to its 24 GB (exo's memory-proportional sharding)
+- **NOT a primary compute peer**: The M4 Max has 5.3× more memory, 5.5× more bandwidth, 2× more ANE TFLOPS, and 3× faster TB links
 
 ## Node 4: Beast Linux (RDMA Server) — PENDING SPECS
 

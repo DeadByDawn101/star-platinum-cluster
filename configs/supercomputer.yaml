@@ -60,17 +60,26 @@ nodes:
         note: "OdinLink over TB3 untested — may need 10GbE fallback"
 
   mac-node-2:
-    role: ane-worker
-    silicon: M-series  # set at bringup
-    ane_tops: 38.0  # conservative estimate
-    ane_tflops_fp16: 19.0
+    role: ane-worker-light
+    model: MacBook Pro 14-inch (Mac15,3, Late 2023)
+    silicon: Apple M3 (base)
+    cpu_cores: 8 (4P + 4E)
+    gpu_cores: 10
+    gpu_tflops_fp16: 7.0
+    ane_tops: 18.0
+    ane_tflops_fp16: 9.0
+    unified_memory_gb: 24
+    memory_bandwidth_gbps: 100
+    storage_tb: 2
+    metal_version: 4
     services:
       - exo-worker
       - ane-worker
     connections:
       - target: m4-max-brain
-        type: tb4
+        type: tb4  # Only TB4 on base M3 (NOT TB5)
         bandwidth_gbps: 40
+        note: "2 ports only — 1 for cluster link, 1 for peripherals"
 
   beast-linux:
     role: rdma-server
