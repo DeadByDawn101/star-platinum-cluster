@@ -105,47 +105,87 @@ Original plan called this "ANE worker" with assumed M4-class specs. Reality chec
 - **Pipeline parallel tail**: In a 2-node pipeline (M4 Max + M3), the M3 handles the last N layers proportional to its 24 GB (exo's memory-proportional sharding)
 - **NOT a primary compute peer**: The M4 Max has 5.3× more memory, 5.5× more bandwidth, 2× more ANE TFLOPS, and 3× faster TB links
 
-## Node 4: Beast Linux (RDMA Server) — PENDING SPECS
+## Node 4: Mac Pro 2013 "Trashcan" — Beast Linux
 
-## Node 5: MacBook Pro M2 Pro (Remote Access)
+| Spec | Value |
+|------|-------|
+| **Model** | Mac Pro (Late 2013) "Trashcan" |
+| **Model ID** | MacPro6,1 |
+| **OS** | Ubuntu Linux (kernel 6.8.0-101-generic) |
+| **CPU** | Intel Xeon E5-1680 v2, 8-core / 16-thread, 3.0 GHz (Turbo 3.9 GHz) |
+| **RAM** | **64 GB** DDR3 ECC 1866 MHz |
+| **GPU** | 2× AMD Radeon HD 7870 XT (Tahiti LE / FirePro D700) |
+| **GPU Compute** | ~5 TFLOPS FP32 combined (GCN 1.0, no modern compute) |
+| **ANE** | **NONE** (Intel x86) |
+| **Storage** | 1 TB Apple SSD SM1024 |
+| **Thunderbolt** | **Thunderbolt 2** (Falcon Ridge DSL5520), 3× NHI controllers, **20 Gbps** |
+| **Ethernet** | 2× Gigabit (enp11s0 active, enp12s0 down) |
+| **USB** | USB 2.0 (EHCI) + USB 3.0 (Fresco Logic FL1100) |
+| **Networking** | Tailscale VPN active, Docker with multiple bridge networks |
+| **RDMA** | **NOT installed** — no hardware RDMA (no IB HCA, no RoCE NIC) |
+
+### Critical findings — THIS CHANGES THE ARCHITECTURE
+
+1. **Thunderbolt 2 (20 Gbps), NOT TB3/TB4/TB5**: The Falcon Ridge DSL5520 is a 2013 TB2 controller. OdinLink requires TB4/TB5 NHI ring DMA — a completely different hardware interface. **OdinLink will NOT work on this machine.** The NHI register set and ring descriptor format are incompatible.
+
+2. **Kernel 6.8.0**: OdinLink requires kernel 6.18+. Even if TB2 were compatible, the kernel is too old. Upgrading is possible but doesn't fix the TB2 hardware limitation.
+
+3. **No RDMA hardware**: No InfiniBand HCA, no RoCE NIC. rdma-core can be installed but there's nothing to drive. Software RDMA (rxe/SoftiWARP) is possible but runs over Ethernet at CPU cost — no hardware offload.
+
+4. **Dual GPUs are obsolete**: Radeon HD 7870 XT is 2012 GCN 1.0. No ROCm, no Metal, no modern compute API. Display-only.
+
+5. **64 GB RAM is the saving grace**: Second-largest memory pool after the M4 Max. Useful for CPU workloads.
+
+6. **Already a Docker server**: Running containers with bridge networks. Functional infrastructure host.
+
+7. **Tailscale active**: Reachable remotely. Good for management plane.
+
+8. **1 Gbps Ethernet only**: This is the realistic data link speed to the cluster. 100× slower than even TB3.
+
+### Revised cluster role
+
+The Beast **cannot** be an RDMA transport node. New role:
+- **Docker service host**: DirectReduce as a containerized service, monitoring stacks, API gateways
+- **CPU compute**: 8-core Xeon + 64 GB for tokenization, data preprocessing, checkpoint management
+- **Network storage**: 1 TB SSD over Gigabit Ethernet (or Tailscale)
+- **Software-only DirectReduce**: Python/numpy gradient reduction, but at 1 Gbps speeds
+- **NOT on the Thunderbolt data plane**: TB2 is incompatible with entire cluster RDMA strategy
+
+---
+
+## Node 5: MacBook Pro M2 Pro 16" (Role TBD)
 
 | Spec | Value |
 |------|-------|
 | **Model** | MacBook Pro (16-inch, M2 Pro, 2023) |
 | **Model ID** | Mac14,10 (A2780) |
-| **Model Number** | MNW93LL/A |
 | **Chip** | Apple M2 Pro |
-| **CPU** | 12-core (8 Performance + 4 Efficiency) |
+| **CPU** | 12-core (8P + 4E) |
 | **GPU** | 19-core Apple GPU, Metal 4 |
-| **GPU Compute** | ~7 TFLOPS FP32 / ~14 TFLOPS FP16 (estimated) |
 | **Neural Engine** | 16-core ANE, 15.8 TOPS INT8 / **7.9 TFLOPS FP16 true** |
-| **Memory** | 16 GB unified LPDDR5 |
-| **Memory Bandwidth** | 200 GB/s |
+| **Memory** | 16 GB unified LPDDR5 @ 200 GB/s |
 | **Storage** | 500 GB SSD |
 | **Thunderbolt** | **3× Thunderbolt 4** (USB-C), 40 Gbps |
-| **HDMI** | 1× HDMI 2.1 |
-| **Wi-Fi** | Wi-Fi 6E (802.11ax) |
-| **Bluetooth** | 5.3 |
-| **Display** | 16.2" 3456×2234 Liquid Retina XDR |
 
-### Cluster role implications
+### Cluster role: AWAITING ASSIGNMENT
 
-- **16 GB memory**: Smallest memory in the cluster. Can hold ~8B param models max. Not viable for large model shards.
-- **500 GB storage**: Smallest SSD. Limited model cache capacity.
-- **3× Thunderbolt 4**: Same as iMac Pro speed (40 Gbps) but has 3 ports vs iMac Pro's 4. COULD be TB-connected to the cluster if needed.
-- **7.9 TFLOPS ANE**: Lowest ANE in the cluster but still functional for light workloads.
-- **200 GB/s bandwidth**: 2× the M3 base, decent for its memory size.
-- **16-inch display**: Good for on-the-go monitoring/dashboard viewing.
+This machine has 3× TB4 ports and ANE compute. Could potentially:
+- Replace the Beast as a TB4-connected compute node
+- Serve as a third ANE node in the ring (7.9 TFLOPS)
+- Act as portable cluster monitoring/access
 
-### Cluster role: Remote access + light overflow
+---
 
-Originally described as "M2 iMac" — actually a MacBook Pro 16-inch. Role:
-- SSH gateway into all cluster nodes + OpenClaw
-- Portable monitoring (16" screen with dashboard)
-- NOT connected via TB4 for data plane (per original plan)
-- Could optionally join as a light ANE/GPU node if TB-connected
+## Node 6: MacBook Air M2 (Remote SSH Access)
 
-## Node 6: MacBook Air (SSH only) — PENDING SPECS
+| Spec | Value |
+|------|-------|
+| **Model** | MacBook Air (M2, 2022) |
+| **Chip** | Apple M2 |
+| **ANE** | 16-core, 15.8 TOPS INT8 / ~7.9 TFLOPS FP16 |
+| **Thunderbolt** | 2× Thunderbolt / USB 4 (MagSafe charging) |
+
+*Role: SSH remote access into all cluster nodes + OpenClaw. Not on TB data plane.*
 
 ---
 

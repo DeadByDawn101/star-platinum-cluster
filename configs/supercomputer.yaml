@@ -82,18 +82,25 @@ nodes:
         note: "2 ports only — 1 for cluster link, 1 for peripherals"
 
   beast-linux:
-    role: rdma-server
-    silicon: x86
-    ane_tops: 0  # no ANE on Linux
+    role: docker-service-host  # NOT rdma-server — TB2 incompatible
+    model: Mac Pro (Late 2013) "Trashcan" MacPro6,1
+    silicon: Intel Xeon E5-1680 v2 (8-core, 3.0 GHz)
+    ram_gb: 64  # DDR3 ECC — NOT unified memory
+    gpu: 2× AMD Radeon HD 7870 XT (GCN 1.0, display-only)
+    ane_tops: 0  # Intel x86 — no ANE
+    storage_tb: 1
+    kernel: 6.8.0-101-generic
+    thunderbolt: TB2 (Falcon Ridge DSL5520, 20 Gbps) # INCOMPATIBLE with OdinLink
     services:
-      - exo-worker
-      - rdma-core
-      - odinlink-native
-      - directreduce
+      - directreduce-software  # CPU/numpy reduction only
+      - docker-host
+      - checkpoint-storage
+      - tailscale-vpn
     connections:
-      - target: imac-pro-control
-        type: tb4
-        bandwidth_gbps: 40
+      - target: cluster-lan
+        type: ethernet
+        bandwidth_gbps: 1  # Gigabit only — NOT 10GbE
+        note: "TB2 cannot run OdinLink. 1GbE is the only data path."
 
   m2pro-remote:
     role: remote-access
