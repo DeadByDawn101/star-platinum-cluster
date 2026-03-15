@@ -29,18 +29,29 @@ nodes:
 
   imac-pro-control:
     role: control-center
-    silicon: varies  # set at bringup
+    silicon: Intel Xeon W-2140B (8-core, 3.2 GHz)
+    model: iMacPro1,1 (Late 2017)
+    ram: 32 GB DDR4 ECC 2666 MHz
+    gpu: AMD Radeon Pro Vega 56 (8 GB HBM2)
+    gpu_tflops_fp16: 22.0
+    ane_tops: 0  # Intel — NO ANE
+    storage: 1 TB SSD
+    ethernet: 10GbE Nbase-T
+    security_chip: Apple T2
     services:
       - exo-worker
       - cluster-dashboard
       - directreduce
+      - vega-gpu-compute  # 22 TFLOPS FP16 via Metal 3
     connections:
       - target: m4-max-brain
-        type: tb4
+        type: tb3  # Thunderbolt 3, NOT TB4
         bandwidth_gbps: 40
+        note: "dual TB3 buses, 4 ports total"
       - target: beast-linux
-        type: tb4
+        type: tb3
         bandwidth_gbps: 40
+        note: "OdinLink over TB3 untested — may need 10GbE fallback"
 
   mac-node-2:
     role: ane-worker
