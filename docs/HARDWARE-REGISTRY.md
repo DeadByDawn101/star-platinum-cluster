@@ -40,7 +40,33 @@ The iMac Pro should be recategorized from "TB4 control center" to:
 
 ---
 
-## Node 2: M4 Max (Brain) — PENDING SPECS
+## Node 2: MacBook Pro M4 Max (Brain)
+
+| Spec | Value |
+|------|-------|
+| **Model** | MacBook Pro (14-inch, M4 Max, 2024) |
+| **Model ID** | Mac16,6 (A3185) |
+| **Chip** | Apple M4 Max |
+| **CPU** | 16-core (12 Performance + 4 Efficiency) |
+| **GPU** | 40-core Apple GPU, Metal 4 |
+| **GPU Compute** | ~54 TFLOPS FP16 (estimated from 40-core M4 Max benchmarks) |
+| **Neural Engine** | 16-core ANE, 38 TOPS INT8 / **19 TFLOPS FP16 true** |
+| **Memory** | **128 GB** unified LPDDR5X |
+| **Memory Bandwidth** | 546 GB/s |
+| **Storage** | TBD |
+| **Thunderbolt** | **3× Thunderbolt 5** (USB-C), 120 Gbps max |
+| **HDMI** | 1× HDMI 2.1 |
+| **Wi-Fi** | Wi-Fi 6E (802.11ax) |
+| **Bluetooth** | 5.3 |
+| **Display** | 14.2" 3024×1964 Liquid Retina XDR |
+
+### Cluster role: Brain
+
+- **128 GB unified memory**: Fits Qwen 72B+ entirely in memory. Crown jewel of the cluster.
+- **Thunderbolt 5**: 120 Gbps (3× the iMac Pro's TB3). Native OdinLink target. 3 ports = direct links to 2 nodes + 1 peripheral.
+- **19 TFLOPS ANE**: Primary ANE compute. At 94% utilization (32+ chained ops) = ~17.9 sustained TFLOPS.
+- **~54 TFLOPS GPU**: 40-core Metal 4 GPU. Handles decode phase in hybrid ANE-prefill/GPU-decode strategy.
+- **546 GB/s bandwidth**: Feeds ANE + GPU without bottleneck for large model inference.
 
 ## Node 3: Mac Node 2 (ANE Worker) — PENDING SPECS
 

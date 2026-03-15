@@ -11,21 +11,27 @@ cluster:
 nodes:
   m4-max-brain:
     role: brain
-    silicon: M4 Max
+    model: MacBook Pro 14-inch (Mac16,6, 2024)
+    silicon: Apple M4 Max
+    cpu_cores: 16 (12P + 4E)
+    gpu_cores: 40
+    gpu_tflops_fp16: 54.0
     ane_tops: 38.0
     ane_tflops_fp16: 19.0
     unified_memory_gb: 128
+    memory_bandwidth_gbps: 546
+    metal_version: 4
     services:
       - exo-master
       - directreduce
       - ane-worker
     connections:
       - target: imac-pro-control
-        type: tb4
-        bandwidth_gbps: 40
+        type: tb5
+        bandwidth_gbps: 120
       - target: mac-node-2
-        type: tb4
-        bandwidth_gbps: 40
+        type: tb5
+        bandwidth_gbps: 120
 
   imac-pro-control:
     role: control-center
