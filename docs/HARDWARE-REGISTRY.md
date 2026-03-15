@@ -81,7 +81,7 @@ The iMac Pro should be recategorized from "TB4 control center" to:
 | **Neural Engine** | 16-core ANE, 18 TOPS INT8 / **9 TFLOPS FP16 true** |
 | **Memory** | 24 GB unified LPDDR5 |
 | **Memory Bandwidth** | 100 GB/s |
-| **Storage** | 2 TB SSD |
+| **Storage** | 1 TB SSD |
 | **Thunderbolt** | **2× Thunderbolt 4** (USB-C), 40 Gbps |
 | **HDMI** | 1× HDMI 2.1 |
 | **Wi-Fi** | Wi-Fi 6E (802.11ax) |
@@ -95,7 +95,7 @@ The iMac Pro should be recategorized from "TB4 control center" to:
 - **9 TFLOPS FP16 ANE**: Half the M4 Max's ANE throughput. Still useful but not a powerhouse. The M3 ANE is the same 16-core design but clocked lower.
 - **24 GB memory**: Can hold ~12B parameter models. Too small for 32B+ without sharding.
 - **100 GB/s bandwidth**: 5.5× slower than M4 Max. Will bottleneck large model inference.
-- **2 TB storage**: Plenty for model caches and checkpoints.
+- **1 TB storage**: Shared with iMac Pro. Model caches will need to be managed carefully across 1 TB nodes.
 
 ### Revised cluster role
 
