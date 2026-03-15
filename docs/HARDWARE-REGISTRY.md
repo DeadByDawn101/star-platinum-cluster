@@ -191,3 +191,41 @@ This machine has 3× TB4 ports and ANE compute. Could potentially:
 
 *Updated: March 2026*
 *Run `system_profiler SPHardwareDataType SPDisplaysDataType SPThunderboltDataType` on each node to fill in specs.*
+
+---
+
+## Node 7: MacBook Pro M1 Pro 16" (ANE Compute)
+
+| Spec | Value |
+|------|-------|
+| **Model** | MacBook Pro (16-inch, M1 Pro, 2021) |
+| **Model ID** | MacBookPro18,1 (A2485) |
+| **Chip** | Apple M1 Pro |
+| **CPU** | 10-core (8P + 2E), 3.2 GHz |
+| **GPU** | 16-core Apple GPU, Metal 3 |
+| **GPU Compute** | ~5.2 TFLOPS FP16 |
+| **Neural Engine** | 16-core ANE, 22 TOPS INT8 / **11.0 TFLOPS FP16 true** |
+| **Memory** | 16 GB unified LPDDR5 @ 200 GB/s |
+| **Memory Bandwidth** | 200 GB/s |
+| **Storage** | 1 TB SSD |
+| **Thunderbolt** | **3× Thunderbolt 4** (USB-C), 40 Gbps |
+| **HDMI** | 1× HDMI 2.0 |
+| **MagSafe** | MagSafe 3 charging |
+| **Wi-Fi** | Wi-Fi 6 (802.11ax) |
+| **Bluetooth** | 5.0 |
+
+### Cluster role: ANE Compute Node
+
+- **11 TFLOPS FP16 ANE**: Second-highest ANE throughput after M4 Max (19T). This is a serious compute node.
+- **3× Thunderbolt 4**: Full ring connectivity — can link to 2 nodes + 1 peripheral.
+- **16 GB unified memory**: Same as M2 Pro. Can hold ~8B parameter models. Shards of larger models via exo.
+- **200 GB/s bandwidth**: 2× the M3, same as M2 Pro. Good ANE feed rate.
+- **1 TB SSD**: Matches M4 Max storage. Ample model cache.
+- **M1 Pro architecture**: First-gen Apple Silicon pro chip. Proven stable, well-understood by exo.
+
+### Ring position: Between M4 Max and M3
+
+The M1 Pro's 3× TB4 ports make it the ideal second hop from the M4 Max brain.
+Its 11 TFLOPS ANE is the second-strongest compute in the ring, so placing it
+adjacent to the brain minimizes latency for the heaviest shards.
+

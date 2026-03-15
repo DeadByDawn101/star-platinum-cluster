@@ -26,12 +26,12 @@ nodes:
       - directreduce
       - ane-worker
     connections:
-      - target: imac-pro-control
-        type: tb5
-        bandwidth_gbps: 120
-      - target: mac-node-2
-        type: tb5
-        bandwidth_gbps: 120
+      - target: m1pro-compute
+        type: tb5-to-tb4  # TB5 port on M4 Max → TB4 port on M1 Pro (40 Gbps)
+        bandwidth_gbps: 40
+      - target: m2pro-compute
+        type: tb5-to-tb4  # TB5 port on M4 Max → TB4 port on M2 Pro (40 Gbps)
+        bandwidth_gbps: 40
 
   imac-pro-control:
     role: control-center
@@ -50,14 +50,12 @@ nodes:
       - directreduce
       - vega-gpu-compute  # 22 TFLOPS FP16 via Metal 3
     connections:
-      - target: m4-max-brain
-        type: tb3  # Thunderbolt 3, NOT TB4
+      - target: m1pro-compute
+        type: tb3-to-tb4  # TB3 on iMac Pro → TB4 on M1 Pro (40 Gbps)
         bandwidth_gbps: 40
-        note: "dual TB3 buses, 4 ports total"
-      - target: beast-linux
-        type: tb3
+      - target: mac-node-2
+        type: tb3-to-tb4  # TB3 on iMac Pro → TB4 on M3 (40 Gbps)
         bandwidth_gbps: 40
-        note: "OdinLink over TB3 untested — may need 10GbE fallback"
 
   mac-node-2:
     role: ane-worker-light
@@ -76,10 +74,12 @@ nodes:
       - exo-worker
       - ane-worker
     connections:
-      - target: m4-max-brain
-        type: tb4  # Only TB4 on base M3 (NOT TB5)
+      - target: m2pro-compute
+        type: tb4
         bandwidth_gbps: 40
-        note: "2 ports only — 1 for cluster link, 1 for peripherals"
+      - target: imac-pro-control
+        type: tb4-to-tb3
+        bandwidth_gbps: 40
 
   beast-linux:
     role: docker-service-host  # NOT rdma-server — TB2 incompatible
@@ -102,8 +102,33 @@ nodes:
         bandwidth_gbps: 1  # Gigabit only — NOT 10GbE
         note: "TB2 cannot run OdinLink. 1GbE is the only data path."
 
-  m2pro-remote:
-    role: remote-access
+  m1pro-compute:
+    role: ane-compute
+    model: MacBook Pro 16-inch (MacBookPro18,1, 2021)
+    silicon: Apple M1 Pro
+    cpu_cores: 10 (8P + 2E)
+    gpu_cores: 16
+    gpu_tflops_fp16: 5.2
+    ane_tops: 22.0
+    ane_tflops_fp16: 11.0
+    unified_memory_gb: 16
+    memory_bandwidth_gbps: 200
+    storage_tb: 1
+    metal_version: 3
+    services:
+      - exo-worker
+      - ane-worker
+      - directreduce
+    connections:
+      - target: m4-max-brain
+        type: tb4-to-tb5  # TB4 on M1 Pro → TB5 on M4 Max (40 Gbps)
+        bandwidth_gbps: 40
+      - target: imac-pro-control
+        type: tb4-to-tb3  # TB4 on M1 Pro → TB3 on iMac Pro (40 Gbps)
+        bandwidth_gbps: 40
+
+  m2pro-compute:
+    role: ane-compute
     model: MacBook Pro 16-inch (Mac14,10, 2023)
     silicon: Apple M2 Pro
     cpu_cores: 12 (8P + 4E)
@@ -116,13 +141,16 @@ nodes:
     storage_gb: 500
     metal_version: 4
     services:
-      - ssh-gateway
-      - openclaw
+      - exo-worker
+      - ane-worker
+      - directreduce
     connections:
-      - target: all
-        type: ssh
-        bandwidth_gbps: 0  # not data-plane
-        note: "Could optionally TB4-connect with 3 ports available"
+      - target: m4-max-brain
+        type: tb4-to-tb5  # TB4 on M2 Pro → TB5 on M4 Max (40 Gbps)
+        bandwidth_gbps: 40
+      - target: mac-node-2
+        type: tb4
+        bandwidth_gbps: 40
 
 # ─── exo scheduler configuration ────────────────────────────────────
 
