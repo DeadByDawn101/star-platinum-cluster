@@ -1,0 +1,207 @@
+# Star Platinum Cluster — RavenX Supercomputer Configuration
+# Unifies: exo (scheduler) + ANE (compute) + DirectReduce (collectives) + OdinLink (transport)
+
+cluster:
+  name: "star-platinum"
+  version: "1.0"
+  mode: "supercomputer"  # modes: standalone, cluster, supercomputer
+
+# ─── Node definitions ───────────────────────────────────────────────
+
+nodes:
+  m4-max-brain:
+    role: brain
+    silicon: M4 Max
+    ane_tops: 38.0
+    ane_tflops_fp16: 19.0
+    unified_memory_gb: 128
+    services:
+      - exo-master
+      - directreduce
+      - ane-worker
+    connections:
+      - target: imac-pro-control
+        type: tb4
+        bandwidth_gbps: 40
+      - target: mac-node-2
+        type: tb4
+        bandwidth_gbps: 40
+
+  imac-pro-control:
+    role: control-center
+    silicon: varies  # set at bringup
+    services:
+      - exo-worker
+      - cluster-dashboard
+      - directreduce
+    connections:
+      - target: m4-max-brain
+        type: tb4
+        bandwidth_gbps: 40
+      - target: beast-linux
+        type: tb4
+        bandwidth_gbps: 40
+
+  mac-node-2:
+    role: ane-worker
+    silicon: M-series  # set at bringup
+    ane_tops: 38.0  # conservative estimate
+    ane_tflops_fp16: 19.0
+    services:
+      - exo-worker
+      - ane-worker
+    connections:
+      - target: m4-max-brain
+        type: tb4
+        bandwidth_gbps: 40
+
+  beast-linux:
+    role: rdma-server
+    silicon: x86
+    ane_tops: 0  # no ANE on Linux
+    services:
+      - exo-worker
+      - rdma-core
+      - odinlink-native
+      - directreduce
+    connections:
+      - target: imac-pro-control
+        type: tb4
+        bandwidth_gbps: 40
+
+  m2-imac-remote:
+    role: remote-access
+    silicon: M2
+    services:
+      - ssh-gateway
+      - openclaw
+    connections:
+      - target: all
+        type: ssh
+        bandwidth_gbps: 0  # not data-plane
+
+# ─── exo scheduler configuration ────────────────────────────────────
+
+exo:
+  discovery: mdns
+  api_port: 52415
+  rdma_enabled: true
+  thunderbolt_bridge: disabled  # must be disabled for RDMA
+
+  placement:
+    prefer_rdma_cycles: true
+    memory_overcommit: false
+    ane_weight_factor: 1.5  # prefer ANE-capable nodes for compute shards
+
+  models:
+    core:
+      primary: "ollama/qwen2.5:32b"
+      upgrade_target: "ollama/qwen2.5:72b"
+
+    fallbacks:
+      - "anthropic/claude-sonnet-4-6"
+      - "openai-codex/gpt-5.3-codex"
+      - "xai/grok-4"
+      - "google/gemini-2.0-flash"
+      - "minimax-portal/MiniMax-M2.5"
+
+# ─── ANE compute configuration ──────────────────────────────────────
+
+ane:
+  enabled: true
+  bridge_dylib: "~/Projects/ANE/bridge/libane_bridge.dylib"
+
+  dispatch:
+    inference_qos: real_time    # 0x31 — _ANEQoSMapper.aneRealTimeTaskQoS
+    reduction_qos: background   # 0x09 — _ANEQoSMapper.aneBackgroundTaskQoS
+    max_queue_depth: 127
+    compile_limit_per_process: 110  # restart exec() before hitting 119
+
+  prefill:
+    enabled: true
+    min_batch_size: 4     # below this, use Metal decode instead
+    max_sequence_length: 2048
+    chain_depth: 32       # 32+ ops for 94% utilization
+
+  training:
+    pipeline: dynamic     # options: static, dynamic, disabled
+    kernels_per_layer: 10 # dynamic pipeline shared kernels
+    weight_transport: iosurface  # weights packed in spatial dims
+
+# ─── DirectReduce configuration ──────────────────────────────────────
+
+directreduce:
+  enabled: true
+  port: 9092
+
+  gatekeeper:
+    throughput_threshold_bytes: 65536  # chunks > 64KB → reduction path
+    backpressure_max_pending: 16
+
+  datadirector:
+    default_num_nodes: 3  # Mac nodes in the ring
+
+  compute_enhancer:
+    preferred_backend: ane    # options: ane, numpy, python
+    ane_qos: background       # never interrupt inference
+    fallback_backend: numpy
+
+  transport:
+    mac_to_mac: exo-rdma      # uses exo's MLX distributed RDMA
+    mac_to_beast: odinlink    # native OdinLink TB4 DMA
+    beast_fallback: tcp       # if OdinLink not available
+
+# ─── OdinLink transport configuration ────────────────────────────────
+
+odinlink:
+  # Beast Linux only — Mac nodes use exo's native RDMA
+  beast_driver: odl_tb5.ko
+  ring_size: 4096        # 16 MB per batch
+  batch_mode: throughput  # for large gradient chunks
+  dma_buf_zero_copy: true
+
+  rccl_plugin:
+    enabled: true
+    stats_path: /run/odl_tb5/rccl_stats
+
+# ─── Routing policy ─────────────────────────────────────────────────
+
+routing:
+  local_inference:
+    match: [chat, routine]
+    target: exo.models.core.primary
+    engine: ane-prefill  # ANE for prefill, Metal for decode
+
+  ane_training:
+    match: [embedding_train, tiny_finetune, kernel_benchmark]
+    target: ane-worker
+    engine: ane-dynamic-pipeline
+
+  collective_sync:
+    match: [all_reduce, gradient_sync, state_sync]
+    target: directreduce
+    prefer_node: beast-linux  # RDMA-native reduction
+    fallback: ane-background  # ANE ComputeEnhancer at background QoS
+
+  hosted_heavy:
+    match: [long_context, multi_tool_complex, high_reasoning]
+    target: exo.models.fallbacks[0]
+
+  failover:
+    on_local_error: true
+    on_timeout_ms: 12000
+    fallback_chain: exo.models.fallbacks
+
+# ─── Monitoring ──────────────────────────────────────────────────────
+
+monitoring:
+  metrics_port: 9100
+  collect:
+    - ane_utilization_pct
+    - ane_dispatch_latency_ms
+    - directreduce_reduction_ms
+    - tb4_bandwidth_gbps
+    - tb4_latency_us
+    - node_memory_used_gb
+    - cluster_aggregate_tflops
+  dashboard: exo  # use exo's built-in dashboard at :52415
