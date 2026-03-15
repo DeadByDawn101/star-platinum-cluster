@@ -107,7 +107,43 @@ Original plan called this "ANE worker" with assumed M4-class specs. Reality chec
 
 ## Node 4: Beast Linux (RDMA Server) — PENDING SPECS
 
-## Node 5: M2 iMac (Remote Access) — PENDING SPECS
+## Node 5: MacBook Pro M2 Pro (Remote Access)
+
+| Spec | Value |
+|------|-------|
+| **Model** | MacBook Pro (16-inch, M2 Pro, 2023) |
+| **Model ID** | Mac14,10 (A2780) |
+| **Model Number** | MNW93LL/A |
+| **Chip** | Apple M2 Pro |
+| **CPU** | 12-core (8 Performance + 4 Efficiency) |
+| **GPU** | 19-core Apple GPU, Metal 4 |
+| **GPU Compute** | ~7 TFLOPS FP32 / ~14 TFLOPS FP16 (estimated) |
+| **Neural Engine** | 16-core ANE, 15.8 TOPS INT8 / **7.9 TFLOPS FP16 true** |
+| **Memory** | 16 GB unified LPDDR5 |
+| **Memory Bandwidth** | 200 GB/s |
+| **Storage** | 500 GB SSD |
+| **Thunderbolt** | **3× Thunderbolt 4** (USB-C), 40 Gbps |
+| **HDMI** | 1× HDMI 2.1 |
+| **Wi-Fi** | Wi-Fi 6E (802.11ax) |
+| **Bluetooth** | 5.3 |
+| **Display** | 16.2" 3456×2234 Liquid Retina XDR |
+
+### Cluster role implications
+
+- **16 GB memory**: Smallest memory in the cluster. Can hold ~8B param models max. Not viable for large model shards.
+- **500 GB storage**: Smallest SSD. Limited model cache capacity.
+- **3× Thunderbolt 4**: Same as iMac Pro speed (40 Gbps) but has 3 ports vs iMac Pro's 4. COULD be TB-connected to the cluster if needed.
+- **7.9 TFLOPS ANE**: Lowest ANE in the cluster but still functional for light workloads.
+- **200 GB/s bandwidth**: 2× the M3 base, decent for its memory size.
+- **16-inch display**: Good for on-the-go monitoring/dashboard viewing.
+
+### Cluster role: Remote access + light overflow
+
+Originally described as "M2 iMac" — actually a MacBook Pro 16-inch. Role:
+- SSH gateway into all cluster nodes + OpenClaw
+- Portable monitoring (16" screen with dashboard)
+- NOT connected via TB4 for data plane (per original plan)
+- Could optionally join as a light ANE/GPU node if TB-connected
 
 ## Node 6: MacBook Air (SSH only) — PENDING SPECS
 

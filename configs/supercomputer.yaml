@@ -95,9 +95,19 @@ nodes:
         type: tb4
         bandwidth_gbps: 40
 
-  m2-imac-remote:
+  m2pro-remote:
     role: remote-access
-    silicon: M2
+    model: MacBook Pro 16-inch (Mac14,10, 2023)
+    silicon: Apple M2 Pro
+    cpu_cores: 12 (8P + 4E)
+    gpu_cores: 19
+    gpu_tflops_fp16: 14.0
+    ane_tops: 15.8
+    ane_tflops_fp16: 7.9
+    unified_memory_gb: 16
+    memory_bandwidth_gbps: 200
+    storage_gb: 500
+    metal_version: 4
     services:
       - ssh-gateway
       - openclaw
@@ -105,6 +115,7 @@ nodes:
       - target: all
         type: ssh
         bandwidth_gbps: 0  # not data-plane
+        note: "Could optionally TB4-connect with 3 ports available"
 
 # ─── exo scheduler configuration ────────────────────────────────────
 
