@@ -1,62 +1,165 @@
 # STAR PLATINUM CLUSTER
 
-Local-first AI cluster orchestration for RavenX.
+> RavenX Supercomputer — RDMA + ANE + DirectReduce unified compute fabric.
 
-## Mission
-- Keep **Qwen local as core brain**
-- Route heavy/complex tasks to hosted models
-- Add ANE acceleration/training tier via `DeadByDawn101/ANE`
-- Prepare TB4 transport layer for high-speed data movement
+The first local-first AI supercomputer built from consumer Apple hardware. Unifies RDMA over Thunderbolt, Apple Neural Engine direct compute, and offloaded all-reduce into a distributed training and inference platform.
 
-## v0 Components
-- `services/scheduler`: policy router (local Qwen -> directreduce/ANE -> hosted fallback)
-- `services/ane_worker`: ANE job wrapper (compile/eval/train hooks)
-- `services/directreduce`: all-reduce offload service (software v0)
-- `configs/routing.yaml`: model/resource routing policy
-- `docs/ARCHITECTURE.md`: cluster topology + rollout plan
-- `docs/DIRECTREDUCE-ADAPTATION.md`: deep-dive + application of DirectReduce paper
+## Cluster hardware
+
+| Node | Chip | Memory | ANE TFLOPS | GPU TFLOPS | TB | Storage | Role |
+|------|------|--------|-----------|-----------|-----|---------|------|
+| **M4 Max** MBP 14" | Apple M4 Max | 128 GB | 19.0 | ~54 | 3×TB5 (120G) | 1 TB | Brain — scheduler, core model, primary compute |
+| **M3** MBP 14" | Apple M3 | 24 GB | 9.0 | ~7 | 2×TB4 (40G) | 2 TB | ANE worker — pipeline parallel, model cache |
+| **M2 Pro** MBP 16" | Apple M2 Pro | 16 GB | 7.9 | ~14 | 3×TB4 (40G) | 500 GB | ANE node — tensor parallel shard |
+| **iMac Pro** 2017 | Xeon W-2140B | 32 GB | 0 | ~22 (Vega) | 4×TB3 (40G) | 1 TB | Control plane — dashboard, GPU compute |
+| **Beast** Mac Pro 2013 | Xeon E5-1680 v2 | 64 GB | 0 | — | TB2 (dead) | 1 TB | Docker host — storage, software services |
+| **M2 Air** 2022 | Apple M2 | — | ~7.9 | — | 2×USB4 | — | SSH remote access + OpenClaw |
+
+**Totals (RDMA ring):** 200 GB unified memory | 35.9 ANE TFLOPS | ~97 GPU TFLOPS FP16
+
+## Physical topology
+
+```
+                    ┌─────────────┐
+                    │  M4 Max     │ ← Brain (128 GB, 3×TB5)
+                    │  (brain)    │
+                    └──┬──────┬───┘
+               TB5→TB4 │      │ TB5→TB4
+                  40G   │      │   40G
+              ┌────────┘      └────────┐
+              ▼                        ▼
+        ┌───────────┐          ┌────────────┐
+        │    M3     │          │  M2 Pro    │
+        │ (worker)  │          │  (node)    │
+        └─────┬─────┘          └──────┬─────┘
+         TB4→TB3                 TB4→TB3
+           40G                     40G
+              └────────┐  ┌────────┘
+                       ▼  ▼
+                 ┌─────────────┐
+                 │  iMac Pro   │ ← Control (Vega 56 GPU)
+                 │ (control)   │
+                 └─────────────┘
+
+        ─── Ethernet / Tailscale (not on TB ring) ───
+
+        ┌─────────────┐          ┌─────────────┐
+        │   Beast     │          │   M2 Air    │
+        │  (Docker)   │          │   (SSH)     │
+        │  64GB 1GbE  │          │  remote     │
+        └─────────────┘          └─────────────┘
+```
+
+4-node RDMA ring via Thunderbolt. Beast on Ethernet/Tailscale for Docker services and storage. M2 Air for remote SSH access.
+
+## Software stack
+
+| Layer | Component | What it does |
+|-------|-----------|-------------|
+| L5 | **[exo](https://github.com/DeadByDawn101/exo)** | Cluster scheduler — auto-discovery, topology-aware placement, RDMA ring detection, tensor/pipeline parallel, OpenAI/Claude/Ollama API |
+| L4 | **[ANE](https://github.com/DeadByDawn101/ANE)** compute | 19 TFLOPS/node via `_ANEClient` private APIs — prefill at real-time QoS, reduction at background QoS |
+| L3 | **DirectReduce** | Offloaded all-reduce — GateKeeper/DataDirector/ComputeEnhancer with ANE hardware acceleration |
+| L2 | Zero-copy memory | IOSurface-backed pinned regions (Mac) / `ibv_reg_mr` pattern — DMA-ready tensors |
+| L1 | **[OdinLink](https://github.com/DeadByDawn101/OdinLink-Five)** + exo RDMA | TB4/TB5 DMA ring transport — 40-120 Gbps, zero-copy, RCCL Net v7 plugin |
+| L0 | Hardware | Apple Silicon ANE + GPU + unified memory across Thunderbolt |
+
+## Key integrations
+
+### ANE as cluster TFLOPS multiplier
+
+The ANE is not just for training — it is a 19 TFLOPS FP16 graph execution engine per node. At 32+ chained operations, ANE reaches 94% utilization. The cluster uses ANE for:
+- **Inference prefill** at real-time QoS (high throughput, batched)
+- **Gradient reduction** at background QoS (DirectReduce ComputeEnhancer)
+- **On-device training** via dynamic weight pipeline (weights in IOSurface spatial dims)
+
+ANE supports a 127-deep evaluation queue, enabling simultaneous inference + reduction on the same chip.
+
+### DirectReduce (IEEE IoT Journal 2025)
+
+Software implementation of [DirectReduce: A Scalable Ring AllReduce Offloading Architecture for Torus Topologies](https://ieeexplore.ieee.org/document/11062587). Three-stage pipeline:
+- **GateKeeper**: routes chunks to reduction vs. packetization path
+- **DataDirector**: classifies incoming chunks as intermediate vs. final
+- **ComputeEnhancer**: executes reduction ops on ANE background queue
+
+Up to 1.98x all-reduce latency reduction in ring topologies.
+
+### exo scheduler
+
+Replaces the original custom scheduler with [exo](https://github.com/DeadByDawn101/exo) production-grade orchestration:
+- Automatic mDNS device discovery via libp2p
+- Topology-aware model placement with RDMA cycle detection
+- Tensor parallel (1.8x on 2 devices, 3.2x on 4 devices)
+- Pipeline parallel with memory-proportional layer allocation
+- Master election via distributed consensus
+
+## Repository structure
+
+```
+star-platinum-cluster/
+├── configs/
+│   ├── routing.yaml              # Model/resource routing policy
+│   └── supercomputer.yaml        # Full cluster config (all nodes, all layers)
+├── docs/
+│   ├── ARCHITECTURE.md           # Cluster topology + rollout plan
+│   ├── HARDWARE-REGISTRY.md      # Exact specs for every node
+│   ├── DIRECTREDUCE-ADAPTATION.md # DirectReduce paper application
+│   ├── CLUSTER-BRINGUP.md        # Step-by-step cluster startup
+│   ├── NODE-ONBOARDING.md        # Node registration flow
+│   ├── HERETIC-SETUP.md          # Local gpt-oss-20b-heretic worker
+│   ├── LINUX-RDMA-BEAST.md       # Beast Linux integration
+│   └── REPO-INTEL.md             # External repo scan
+├── services/
+│   ├── scheduler/main.py         # Policy router (legacy, replaced by exo)
+│   ├── ane_worker/main.py        # ANE job wrapper
+│   ├── ane_engine/ane_compute.py  # ANE compute backend for exo integration
+│   ├── directreduce/main.py      # All-reduce v0 (software)
+│   ├── directreduce/main_v1.py   # All-reduce v1 (ANE-accelerated)
+│   └── heretic_worker/main.py    # gpt-oss-20b-heretic local model
+└── scripts/
+    ├── cluster_up.sh             # Start all local services
+    ├── cluster_down.sh           # Stop all services
+    ├── cluster_health.sh         # Health check
+    ├── beast_rdma_bootstrap.sh   # Beast RDMA setup
+    └── benchmark_directreduce.py # Correctness/perf harness
+```
 
 ## Quick start
+
 ```bash
-# start all local services
+# Start legacy local services (scheduler + directreduce + ane_worker)
 ./scripts/cluster_up.sh
 
-# check health
+# Health check
 ./scripts/cluster_health.sh
 
-# benchmark directreduce path
+# Benchmark DirectReduce v1 (ANE-accelerated when available)
+python3 services/directreduce/main_v1.py &
 python3 scripts/benchmark_directreduce.py
 
-# stop all services
-./scripts/cluster_down.sh
+# Start exo on each node (replaces legacy scheduler)
+uv run exo  # runs at http://localhost:52415
 ```
 
-### SOUL mode core-model override
-Use this when running SOUL-enhanced local default (gpt-oss-20b-heretic):
-```bash
-export SPC_CORE_MODEL="ollama/gpt-oss-20b-heretic"
-./scripts/cluster_up.sh
-```
+## Companion repositories
 
-### Route check example
-```bash
-curl -s http://127.0.0.1:9090/route \
-  -H "content-type: application/json" \
-  -d '{"task_type":"high_reasoning","payload":{}}' | jq
-```
+| Repo | Purpose |
+|------|---------|
+| [exo](https://github.com/DeadByDawn101/exo) | Distributed AI scheduler with RDMA over Thunderbolt |
+| [OdinLink-Five](https://github.com/DeadByDawn101/OdinLink-Five) | TB4/TB5 DMA ring driver + RCCL plugin |
+| [ANE](https://github.com/DeadByDawn101/ANE) | Apple Neural Engine direct compute + training |
+| [rdma-core](https://github.com/DeadByDawn101/rdma-core) | Linux RDMA userspace stack (Beast node reference) |
 
-## Priority roadmap
-1. Qwen local core (14b now, 72b once downloaded)
-2. Hosted fallback mesh (Sonnet, Codex, Grok, Gemini, MiniMax)
-3. ANE worker integration with compile cache
-4. TB4 data plane shim (checkpoint/batch movement)
-5. Unified metrics + failover controller
+## Roadmap
 
-## Cluster registry API
-- `GET /health`
-- `GET /nodes`
-- `POST /nodes/register`
-- `POST /route`
+1. **Phase 1** — exo cluster bringup: install exo on all ring nodes, configure TB RDMA, verify 4-node ring
+2. **Phase 2** — ANE compute backend: wire ANE dispatch into exo runner protocol
+3. **Phase 3** — DirectReduce v1: ANE-accelerated gradient reduction at background QoS
+4. **Phase 4** — Unified training: distributed forward/backward across ANE ring with DirectReduce sync
+5. **Phase 5** — Hardening: metrics, failover, monitoring dashboard
+6. **Phase 6** — Public release: documentation, benchmarks, packaging
 
-See `docs/NODE-ONBOARDING.md` for one-by-one node registration flow.
-Heretic local setup: `docs/HERETIC-SETUP.md`.
+## References
+
+- [DirectReduce: A Scalable Ring AllReduce Offloading Architecture for Torus Topologies](https://ieeexplore.ieee.org/document/11062587) (IEEE IoT Journal, 2025)
+- [Inside the M4 Apple Neural Engine](https://maderix.substack.com/p/inside-the-m4-apple-neural-engine) (maderix, 2026)
+- [AppleNeuralEngine.framework Runtime Headers](https://github.com/nst/iOS-Runtime-Headers/tree/master/PrivateFrameworks/AppleNeuralEngine.framework)
