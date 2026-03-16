@@ -101,7 +101,7 @@ for iface in $(networksetup -listallnetworkservices 2>/dev/null | grep -i "thund
 done
 ok "Thunderbolt networking configured"
 
-# ── 6. Build exo ─────────────────────────────────────────────────
+# ── 6. Build exo + dashboard ─────────────────────────────────────
 log "Setting up exo..."
 cd ~/Projects/exo
 if [[ -f "pyproject.toml" ]]; then
@@ -109,6 +109,15 @@ if [[ -f "pyproject.toml" ]]; then
     ok "exo dependencies installed"
 else
     ok "exo ready (no pyproject.toml — will install on first run)"
+fi
+
+log "Building exo dashboard..."
+if [[ -d "dashboard" ]]; then
+    cd dashboard
+    npm install 2>/dev/null && npm run build 2>/dev/null && ok "exo dashboard built" || err "Dashboard build failed — run manually: cd ~/Projects/exo/dashboard && npm install && npm run build"
+    cd ~/Projects/exo
+else
+    ok "No dashboard directory — skipping"
 fi
 
 # ── 7. Build ANE bridge (Apple Silicon only) ─────────────────────
