@@ -27,7 +27,30 @@ else
     ok "Homebrew installed"
 fi
 
-# ── 2. Core tools ────────────────────────────────────────────────
+# ── 2. Xcode CLI tools + Metal Toolchain ─────────────────────────
+log "Checking Xcode Command Line Tools..."
+if xcode-select -p &>/dev/null; then
+    ok "Xcode CLI tools already installed"
+else
+    log "Installing Xcode CLI tools (may prompt for confirmation)..."
+    xcode-select --install 2>/dev/null || true
+    # Wait for install to complete
+    until xcode-select -p &>/dev/null; do
+        sleep 5
+    done
+    ok "Xcode CLI tools installed"
+fi
+
+log "Installing Metal Toolchain (required for MLX/exo on Tahoe)..."
+xcodebuild -downloadComponent MetalToolchain 2>/dev/null || true
+if xcrun --find metal &>/dev/null; then
+    ok "Metal Toolchain ready"
+else
+    err "Metal Toolchain may not have installed — exo/MLX build may fail"
+    err "Try manually: xcodebuild -downloadComponent MetalToolchain"
+fi
+
+# ── 3. Core tools ────────────────────────────────────────────────
 log "Installing core tools..."
 brew install --quiet git node uv rust 2>/dev/null || true
 ok "Core tools ready"
