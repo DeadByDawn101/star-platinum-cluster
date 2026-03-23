@@ -43,6 +43,7 @@ case "${1:-start}" in
 
     # Create tmux session with auto-restart loop
     tmux new-session -d -s "$SESSION" bash -c "
+        export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH
         while true; do
             echo '========================================'
             echo \"[\$(date)] Starting exo...\"
@@ -61,7 +62,7 @@ case "${1:-start}" in
     echo ""
     echo "  Node:     $(scutil --get ComputerName 2>/dev/null || hostname)"
     echo "  Chip:     $(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo 'Apple Silicon')"
-    echo "  Memory:   $(($(sysctl -n hw.memsize 2>/dev/null) / 1073741824)) GB"
+    echo "  Memory:   $(python3 -c "import subprocess; r=subprocess.run(['sysctl','-n','hw.memsize'],capture_output=True,text=True); print(str(int(r.stdout.strip()or 0)//1073741824)+'GB')" 2>/dev/null || echo 'unknown')"
     echo "  Log:      $LOG_FILE"
     echo "  Dashboard: http://localhost:52415"
     echo ""
