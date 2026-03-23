@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env zsh
 #
 # TB4 Network Setup Script for Star Platinum Cluster
 # 
@@ -31,25 +31,27 @@ MTU=9000
 # IP addressing scheme for TB4 ring
 # Each node gets IPs on its connected interfaces
 # Format: 169.254.x.y where x = node, y = interface
-declare -A NODE_IPS=(
-    ["brain_1"]="169.254.1.1"    # M4 Max TB5 port 1 -> M1 Pro
-    ["brain_2"]="169.254.5.1"    # M4 Max TB5 port 3 -> M3
-    ["m1pro_1"]="169.254.1.2"    # M1 Pro -> M4 Max
-    ["m1pro_2"]="169.254.2.2"    # M1 Pro -> iMac Pro
-    ["imac_1"]="169.254.2.3"     # iMac Pro -> M1 Pro
-    ["imac_2"]="169.254.3.3"     # iMac Pro -> M2 Pro
-    ["m2pro_1"]="169.254.3.4"    # M2 Pro -> iMac Pro
-    ["m2pro_2"]="169.254.4.4"    # M2 Pro -> M3
-    ["m3_1"]="169.254.4.5"       # M3 -> M2 Pro
-    ["m3_2"]="169.254.5.5"       # M3 -> M4 Max
+typeset -A NODE_IPS
+NODE_IPS=(
+    brain_1 "169.254.1.1"    # M4 Max TB5 port 1 -> M1 Pro
+    brain_2 "169.254.5.1"    # M4 Max TB5 port 3 -> M3
+    m1pro_1 "169.254.1.2"    # M1 Pro -> M4 Max
+    m1pro_2 "169.254.2.2"    # M1 Pro -> iMac Pro
+    imac_1 "169.254.2.3"     # iMac Pro -> M1 Pro
+    imac_2 "169.254.3.3"     # iMac Pro -> M2 Pro
+    m2pro_1 "169.254.3.4"    # M2 Pro -> iMac Pro
+    m2pro_2 "169.254.4.4"    # M2 Pro -> M3
+    m3_1 "169.254.4.5"       # M3 -> M2 Pro
+    m3_2 "169.254.5.5"       # M3 -> M4 Max
 )
 
 # SSH config for remote nodes (for cluster-wide setup)
 SSH_KEY="${HOME}/.ssh/id_ed25519"
-declare -A SSH_HOSTS=(
-    ["m1pro"]="admin@Node-3-m1pro.local"
-    ["m2pro"]="admon@macbook-m2.local"
-    ["m3"]="node1@100.90.247.62"
+typeset -A SSH_HOSTS
+SSH_HOSTS=(
+    m1pro "admin@Node-3-m1pro.local"
+    m2pro "admon@macbook-m2.local"
+    m3 "node1@100.90.247.62"
 )
 
 # =============================================================================
@@ -74,7 +76,7 @@ log_error() {
 
 get_tb_interfaces() {
     # Get list of Thunderbolt network interfaces
-    networksetup -listallhardwareports 2>/dev/null | \
+    /usr/sbin/networksetup -listallhardwareports 2>/dev/null | \
         grep -A1 -i "thunderbolt" | \
         grep "Device:" | \
         awk '{print $2}'
@@ -118,17 +120,17 @@ check_config() {
     echo "-----------------------"
     
     TB_IFACES=$(get_tb_interfaces)
-    if [ -z "$TB_IFACES" ]; then
+    if [[ -z "$TB_IFACES" ]]; then
         log_warning "No Thunderbolt interfaces found"
         return
     fi
     
-    for iface in $TB_IFACES; do
+    for iface in ${(f)TB_IFACES}; do
         STATUS=$(get_interface_status "$iface")
         IP=$(get_interface_ip "$iface")
         MTU_VAL=$(get_interface_mtu "$iface")
         
-        if [ "$STATUS" = "active" ]; then
+        if [[ "$STATUS" == "active" ]]; then
             STATUS_ICON="🟢"
         else
             STATUS_ICON="🔴"
@@ -143,8 +145,7 @@ check_config() {
     echo "Node Connectivity:"
     echo "------------------"
     
-    for node in "${!SSH_HOSTS[@]}"; do
-        host="${SSH_HOSTS[$node]}"
+    for node host in ${(kv)SSH_HOSTS}; do
         if ssh -i "$SSH_KEY" -o ConnectTimeout=2 -o BatchMode=yes "$host" "exit 0" 2>/dev/null; then
             echo "🟢 $node ($host): reachable"
         else
@@ -179,54 +180,55 @@ setup_node() {
     echo ""
     
     TB_IFACES=$(get_tb_interfaces)
-    if [ -z "$TB_IFACES" ]; then
+    if [[ -z "$TB_IFACES" ]]; then
         log_error "No Thunderbolt interfaces found"
         exit 1
     fi
     
     # Get array of interfaces
-    IFS=$'\n' read -r -d '' -a IFACE_ARRAY <<< "$TB_IFACES" || true
+    local -a IFACE_ARRAY
+    IFACE_ARRAY=(${(f)TB_IFACES})
     
     # Configure based on node
     case $node in
         brain|m4max)
-            if [ ${#IFACE_ARRAY[@]} -ge 1 ]; then
-                configure_interface "${IFACE_ARRAY[0]}" "${NODE_IPS[brain_1]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 1 ]]; then
+                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[brain_1]}"
             fi
-            if [ ${#IFACE_ARRAY[@]} -ge 2 ]; then
-                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[brain_2]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 2 ]]; then
+                configure_interface "${IFACE_ARRAY[2]}" "${NODE_IPS[brain_2]}"
             fi
             ;;
         m1pro)
-            if [ ${#IFACE_ARRAY[@]} -ge 1 ]; then
-                configure_interface "${IFACE_ARRAY[0]}" "${NODE_IPS[m1pro_1]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 1 ]]; then
+                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[m1pro_1]}"
             fi
-            if [ ${#IFACE_ARRAY[@]} -ge 2 ]; then
-                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[m1pro_2]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 2 ]]; then
+                configure_interface "${IFACE_ARRAY[2]}" "${NODE_IPS[m1pro_2]}"
             fi
             ;;
         imac)
-            if [ ${#IFACE_ARRAY[@]} -ge 1 ]; then
-                configure_interface "${IFACE_ARRAY[0]}" "${NODE_IPS[imac_1]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 1 ]]; then
+                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[imac_1]}"
             fi
-            if [ ${#IFACE_ARRAY[@]} -ge 2 ]; then
-                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[imac_2]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 2 ]]; then
+                configure_interface "${IFACE_ARRAY[2]}" "${NODE_IPS[imac_2]}"
             fi
             ;;
         m2pro)
-            if [ ${#IFACE_ARRAY[@]} -ge 1 ]; then
-                configure_interface "${IFACE_ARRAY[0]}" "${NODE_IPS[m2pro_1]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 1 ]]; then
+                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[m2pro_1]}"
             fi
-            if [ ${#IFACE_ARRAY[@]} -ge 2 ]; then
-                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[m2pro_2]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 2 ]]; then
+                configure_interface "${IFACE_ARRAY[2]}" "${NODE_IPS[m2pro_2]}"
             fi
             ;;
         m3)
-            if [ ${#IFACE_ARRAY[@]} -ge 1 ]; then
-                configure_interface "${IFACE_ARRAY[0]}" "${NODE_IPS[m3_1]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 1 ]]; then
+                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[m3_1]}"
             fi
-            if [ ${#IFACE_ARRAY[@]} -ge 2 ]; then
-                configure_interface "${IFACE_ARRAY[1]}" "${NODE_IPS[m3_2]}"
+            if [[ ${#IFACE_ARRAY[@]} -ge 2 ]]; then
+                configure_interface "${IFACE_ARRAY[2]}" "${NODE_IPS[m3_2]}"
             fi
             ;;
         *)
@@ -248,8 +250,7 @@ setup_all_nodes() {
     setup_node "brain"
     
     # Setup remote nodes
-    for node in "${!SSH_HOSTS[@]}"; do
-        host="${SSH_HOSTS[$node]}"
+    for node host in ${(kv)SSH_HOSTS}; do
         log_info "Setting up $node at $host..."
         
         if ssh -i "$SSH_KEY" -o ConnectTimeout=5 "$host" "true" 2>/dev/null; then
@@ -302,9 +303,9 @@ enable_rdma() {
     
     RDMA_STATUS=$(rdma_ctl status 2>/dev/null || echo "unknown")
     
-    if [ "$RDMA_STATUS" = "enabled" ]; then
+    if [[ "$RDMA_STATUS" == "enabled" ]]; then
         log_success "RDMA is already enabled"
-    elif [ "$RDMA_STATUS" = "disabled" ]; then
+    elif [[ "$RDMA_STATUS" == "disabled" ]]; then
         log_warning "RDMA is disabled. To enable, boot into Recovery Mode and run:"
         echo "        rdma_ctl enable"
         echo "        Then reboot"
@@ -384,7 +385,7 @@ case $MODE in
         check_config
         ;;
     node)
-        if [ -z "$NODE" ]; then
+        if [[ -z "$NODE" ]]; then
             log_error "Node name required"
             exit 1
         fi
@@ -395,7 +396,7 @@ case $MODE in
         ;;
     "")
         # Interactive mode or just tune/rdma
-        if [ "$DO_TUNE" = true ] || [ "$DO_RDMA" = true ]; then
+        if [[ "$DO_TUNE" == true ]] || [[ "$DO_RDMA" == true ]]; then
             :  # Continue to tune/rdma below
         else
             check_config
@@ -404,12 +405,12 @@ case $MODE in
 esac
 
 # Apply TCP tuning if requested
-if [ "$DO_TUNE" = true ]; then
+if [[ "$DO_TUNE" == true ]]; then
     tune_tcp
 fi
 
 # Check RDMA if requested
-if [ "$DO_RDMA" = true ]; then
+if [[ "$DO_RDMA" == true ]]; then
     enable_rdma
 fi
 
