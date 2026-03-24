@@ -177,14 +177,120 @@ Adding ANE gives us:
 
 ---
 
+## Phase 5: MLX Distributed Integration ⚡ NEW
+
+### Research Complete (2026-03-24)
+**MLX 0.31+ has native distributed inference over Thunderbolt!**
+
+Full research documented in: `docs/MLX-DEEP-DIVE.md`
+
+### Key Discovery: MLX Already Powers exo
+
+Exo's compute backend is already MLX-based with distributed support:
+- `MlxRingInstance` — TCP Ring over TB4 ✅
+- `MlxJacclInstance` — RDMA over TB5 (requires mesh topology)
+- Pipeline parallelism ✅ implemented
+- Tensor parallelism ✅ implemented
+
+### Quick Wins Identified
+
+| Win | Effort | Impact | Status |
+|-----|--------|--------|--------|
+| Enable `MLX_METAL_FAST_SYNCH=1` | 1 min | 10x latency reduction | 🎯 Ready |
+| Upgrade MLX 0.30.7 → 0.31.1 | 5 min | Latest optimizations | 🎯 Ready |
+| Connect TB4 ring + test | 30 min | Enable multi-node | 🔴 Needs cables |
+| Tensor parallelism for 70B | 2 hrs | Run DeepSeek-R1 distributed | After cables |
+
+### MLX Backend Options
+
+| Backend | Transport | Latency | Our Topology | Feasible? |
+|---------|-----------|---------|--------------|-----------|
+| **Ring** | TCP over TB4 | ~50μs | Linear ring | ✅ Yes |
+| JACCL | RDMA over TB5 | ~5μs | Full mesh required | ❌ Need 6 cables |
+| MPI | OpenMPI | ~200μs | Any | ✅ But slower |
+
+**Conclusion:** Ring backend over TB4 is our path. JACCL requires full mesh (N×(N-1)/2 cables = 6 for 4 nodes), which we can't achieve with standard port counts.
+
+### Files Created
+
+```
+~/Projects/star-platinum-cluster/
+├── docs/MLX-DEEP-DIVE.md              # Full research report
+├── configs/star-platinum-ring.json    # MLX hostfile for 4-node ring
+└── scripts/
+    ├── test_mlx_distributed.py        # MLX distributed benchmark
+    └── optimize_mlx_cluster.sh        # Quick optimizations
+```
+
+### Implementation Steps
+
+**Immediate (Today):**
+```bash
+# 1. Apply fast sync optimization
+export MLX_METAL_FAST_SYNCH=1
+
+# 2. Run local optimization check
+./scripts/optimize_mlx_cluster.sh --local
+```
+
+**When TB4 Cables Connected:**
+```bash
+# 3. Configure TB4 network
+./scripts/setup_tb4_network.sh --all
+
+# 4. Test MLX distributed directly
+mlx.launch --hostfile configs/star-platinum-ring.json -n 4 \
+  --env MLX_METAL_FAST_SYNCH=1 -- python scripts/test_mlx_distributed.py
+
+# 5. Test exo multi-node with MLX Ring
+./scripts/exo_start.sh --distributed
+```
+
+### Performance Expectations
+
+| Config | Model | Expected Throughput |
+|--------|-------|---------------------|
+| Single M4 Max | Qwen3.5-35B | ~45 tok/s |
+| 4-node Ring (TCP) | Qwen3.5-35B | ~35 tok/s |
+| 4-node Ring (TCP) | DeepSeek-70B | ~15 tok/s |
+| 4-node + optimized | DeepSeek-70B | ~20 tok/s |
+
+*Communication overhead reduces single-node performance, but enables larger models*
+
+---
+
 ## Timeline (Updated)
 
 - **Week 1:** ~~Phase 1 (Nack fix)~~ ✅ Complete
 - **Week 1:** ~~Phase 3 (Transport layer)~~ ✅ Implemented
-- **Now:** Buy TB4 cables, connect ring
-- **Next:** Phase 2 (Router MVP) + TB4 benchmarks
+- **Week 2:** ~~Phase 5 (MLX research)~~ ✅ Complete
+- **Now:** 
+  - Apply MLX_METAL_FAST_SYNCH optimization
+  - Buy TB4 cables, connect ring
+- **Next:** 
+  - Phase 2 (Router MVP)
+  - TB4 + MLX distributed benchmarks
 - **Week 3-4:** Phase 4 (ANE backend)
 - **Week 5+:** Optimization, benchmarks, documentation, release
+
+---
+
+## Current Status (Updated 2026-03-24)
+
+| Component | Status | Next Action |
+|-----------|--------|-------------|
+| Hardware (4 nodes) | ✅ Working | — |
+| exo discovery (mDNS) | ✅ Working with namespace | — |
+| exo single-node inference | ✅ Working (Qwen3.5-35B) | — |
+| Ollama single-node | ✅ Working (qwen3.5:27b) | — |
+| OpenClaw + Ollama | ✅ Connected | — |
+| **Nack Storm Fix** | ✅ **FIXED** | Deployed to exo |
+| **Transport Layer** | ✅ **IMPLEMENTED** | Buy cables to test |
+| **MLX Research** | ✅ **COMPLETE** | See MLX-DEEP-DIVE.md |
+| **MLX Optimizations** | 🎯 **READY** | Run optimize_mlx_cluster.sh |
+| exo multi-node inference | 🟡 Blocked on cables | Connect TB4 ring |
+| Unified Router | 📋 Designed | Build in Phase 2 |
+| ANE compute backend | 📋 Designed | Build in Phase 4 |
 
 ---
 
