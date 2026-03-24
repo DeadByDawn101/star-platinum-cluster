@@ -367,4 +367,127 @@ LLM_MODEL_NAME=mlx-community/Qwen3.5-35B-A3B-4bit
 
 ---
 
+---
+
+## Phase 7: RavenX AI Trading Intelligence Stack 🧠 NEW
+
+### Overview (Added 2026-03-24)
+
+Research and prototype implementation for an AI-powered trading intelligence system combining:
+- **LeWM (LeWorldModel)**: Market world model for state prediction
+- **SELF**: Self-evolving LLM analyst with language feedback
+- **Star Platinum Cluster**: 184GB distributed compute for training + inference
+
+### Research Documents Created
+
+| Document | Purpose | Location |
+|----------|---------|----------|
+| **LEWM-MARKET-DESIGN.md** | LeWM adaptation for financial time series | `research/` |
+| **SELF-TRADING-DESIGN.md** | SELF framework for trading analysis | `research/` |
+| **RAVENX-AI-STACK.md** | Full integration architecture | `research/` |
+
+### Prototype Code
+
+| File | Description | Status |
+|------|-------------|--------|
+| `lewm_market_prototype.py` | MLX-based market world model (15M params) | ✅ Ready |
+| `self_trade_loop.py` | SELF evolution pipeline with Llama 70B | ✅ Ready |
+
+### Key Insights from Research
+
+**LeWorldModel (arxiv:2603.19312):**
+- 15M parameter JEPA that trains in hours on single GPU
+- Two-term loss: prediction + SIGReg (Gaussian regularization)
+- No stop-gradient, no EMA, no pretrained encoders — pure end-to-end
+- Adaptable to market "frames" (OHLCV as 2D images)
+
+**SELF (arxiv:2310.00533):**
+- Self-evolution through language feedback (no human labels needed)
+- Win/loss from Maya trades = automatic ground truth
+- Model critiques own analysis, improves through iteration
+- Self-refinement at inference time for better predictions
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  RAVENX AI TRADING STACK                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Market Data ──▶ LeWM World Model ──▶ State Prediction     │
+│       │                                     │               │
+│       └──────────────▶ SELF Analyst ◀──────┘               │
+│                            │                                │
+│                 Self-Critique + Refinement                  │
+│                            │                                │
+│                            ▼                                │
+│  Maya Indicators ──▶ Decision Fusion ──▶ Trade/Skip        │
+│                            │                                │
+│                            ▼                                │
+│                    Maya Execution                           │
+│                            │                                │
+│                    Win/Loss Feedback ──▶ Nightly Training   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Training Pipeline
+
+```
+NIGHTLY (2 AM PT):
+1. Collect Maya decisions from GCP
+2. Prepare LeWM training data (market frames)
+3. Train LeWM (~45 min on single node)
+4. Generate SELF training data (Llama 70B)
+5. Fine-tune SELF with LoRA (~90 min distributed)
+6. Evaluate and deploy if improved
+```
+
+### Hardware Requirements
+
+| Component | Memory | Nodes |
+|-----------|--------|-------|
+| LeWM (15M) | 2GB training | 1 (M4 Max) |
+| Llama 70B (4-bit) | 45GB inference | 4 distributed |
+| Training batch | 120GB headroom | Full cluster |
+
+### Success Metrics
+
+| Metric | Current | Target |
+|--------|---------|--------|
+| Win Rate | 55% | > 60% |
+| Confidence Calibration | ±20% | ±10% |
+| Inference Latency | N/A | < 2s |
+| Training Success | N/A | > 95% |
+
+### Timeline
+
+| Week | Milestone |
+|------|-----------|
+| 1 | Prototypes complete, single-node testing |
+| 2 | Maya integration, A/B testing |
+| 3-4 | Distributed training, optimization |
+| Month 2+ | Continuous learning, production deployment |
+
+### Files Created
+
+```
+~/Projects/star-platinum-cluster/research/
+├── LEWM-MARKET-DESIGN.md          # LeWM design document
+├── SELF-TRADING-DESIGN.md         # SELF design document
+├── RAVENX-AI-STACK.md             # Integration architecture
+├── lewm_market_prototype.py       # LeWM MLX implementation
+└── self_trade_loop.py             # SELF pipeline implementation
+```
+
+### Next Steps
+
+1. **Connect TB4 cables** — Enable distributed training
+2. **Run initial training** — LeWM + SELF on 30 days of Maya data
+3. **Maya integration hook** — Add AI signals to decision pipeline
+4. **A/B testing** — Maya vs Maya+AI comparison
+5. **Nightly automation** — Cron job for continuous learning
+
+---
+
 *RavenX LLC — 2026. Zero compromises.* 🖤
