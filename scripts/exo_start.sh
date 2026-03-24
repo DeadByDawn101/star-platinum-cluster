@@ -49,7 +49,7 @@ case "${1:-start}" in
             echo \"[\$(date)] Starting exo...\"
             echo '========================================'
             cd $EXO_DIR
-            EXO_LIBP2P_NAMESPACE=$NAMESPACE uv run exo 2>&1 | tee -a $LOG_FILE
+            MLX_METAL_FAST_SYNCH=1 EXO_LIBP2P_NAMESPACE=$NAMESPACE uv run exo 2>&1 | tee -a $LOG_FILE
             EXIT_CODE=\$?
             echo \"\"
             echo \"[\$(date)] exo exited with code \$EXIT_CODE\"
