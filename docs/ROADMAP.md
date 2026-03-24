@@ -294,4 +294,77 @@ mlx.launch --hostfile configs/star-platinum-ring.json -n 4 \
 
 ---
 
+## Phase 6: MiroFish Swarm Intelligence 🐟 NEW
+
+### Overview (Added 2026-03-24)
+
+MiroFish is a multi-agent swarm intelligence engine for predictive simulation. Integrating it with Star Platinum enables:
+- **Zero-cost AI predictions** via local inference
+- **Trading bot enhancement** for Maya Scorpio & RAZOR
+- **Emergent forecasting** through agent simulations
+
+### Integration Points
+
+| Component | Integration Method | Status |
+|-----------|-------------------|--------|
+| LLM Backend | OpenAI-compatible API | ✅ Ready (port 52415) |
+| Memory (Zep) | Cloud service | ✅ Free tier available |
+| Simulation Engine | OASIS (camel-ai) | ✅ Installed |
+| Trading Integration | Maya API wrapper | 📋 Planned |
+
+### Use Cases
+
+1. **Pre-Trade Sentiment Analysis**
+   - Simulate market reaction before execution
+   - Predict social media sentiment cascade
+   - Risk assessment through agent debates
+
+2. **Memecoin Launch Prediction**
+   - Model retail vs whale behavior
+   - Simulate pump/dump dynamics
+   - Identify optimal entry/exit timing
+
+3. **Crisis PR Simulation**
+   - Test messaging before deployment
+   - Identify amplifier accounts
+   - Model counter-narrative effectiveness
+
+### Installation
+
+```bash
+# Already installed at ~/Projects/MiroFish
+cd ~/Projects/MiroFish
+source .venv/bin/activate  # Python 3.11 required
+npm run dev
+```
+
+### Configuration for Star Platinum
+
+```bash
+# In .env
+LLM_BASE_URL=http://localhost:52415/v1
+LLM_MODEL_NAME=mlx-community/Qwen3.5-35B-A3B-4bit
+```
+
+### Files Created
+
+```
+~/Projects/MiroFish/
+├── RAVENX-SETUP.md              # RavenX-specific setup guide
+└── .venv/                       # Python 3.11 environment (ready)
+
+~/Projects/star-platinum-cluster/docs/
+├── MIROFISH-INTEGRATION.md      # Full integration analysis
+└── QA-RESULTS.md                # Cluster QA results
+```
+
+### Timeline
+
+- **Week 1:** ✅ Install MiroFish, configure for Star Platinum
+- **Week 2:** Test simulations with local LLM backend
+- **Week 3:** Integrate with Maya trading signals
+- **Month 2:** Production deployment for RavenX AI
+
+---
+
 *RavenX LLC — 2026. Zero compromises.* 🖤
