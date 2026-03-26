@@ -1,0 +1,26 @@
+[
+  {
+    "bits": 2,
+    "cosine_similarity": 0.8572,
+    "memory_kb": 1456.0,
+    "raw_kb": 4096.0,
+    "compression_ratio": 2.81,
+    "compress_time_ms": 13.66
+  },
+  {
+    "bits": 3,
+    "cosine_similarity": 0.9723,
+    "memory_kb": 1456.0,
+    "raw_kb": 4096.0,
+    "compression_ratio": 2.81,
+    "compress_time_ms": 7.98
+  },
+  {
+    "bits": 4,
+    "cosine_similarity": 0.9939,
+    "memory_kb": 1456.0,
+    "raw_kb": 4096.0,
+    "compression_ratio": 2.81,
+    "compress_time_ms": 8.22
+  }
+]

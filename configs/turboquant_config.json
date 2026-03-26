@@ -1,0 +1,37 @@
+{
+  "cluster": "star-platinum",
+  "generated": "2026-03-26",
+  "nodes": {
+    "brain": {"ip": "192.168.1.151", "ram_gb": 128, "chip": "M4 Max"},
+    "m3": {"ip": "192.168.1.158", "ram_gb": 24, "chip": "M3"},
+    "m2pro": {"ip": "192.168.1.177", "ram_gb": 16, "chip": "M2 Pro"},
+    "m1pro": {"ip": "192.168.1.157", "ram_gb": 16, "chip": "M1 Pro"}
+  },
+  "known_bandwidth": {
+    "brain_m3_tb4": "36 Gbps",
+    "brain_m1pro_tb4": "34.5 Gbps",
+    "brain_m2pro_wifi": "~1 Gbps"
+  },
+  "turboquant": {
+    "r_bits": 4,
+    "theta_bits": 4,
+    "fp16_sink_size": 128,
+    "chunk_size": 64,
+    "compress_after": 128,
+    "use_qjl_keys": true,
+    "use_qjl_values": false
+  },
+  "grove": {
+    "tb4_nodes": ["brain", "m3", "m1pro"],
+    "wifi_nodes": ["m2pro"],
+    "default_config": "tb4-raw",
+    "tb4_params": {"chunk_size": 8192, "topk": 256, "use_dct": false, "H": 50},
+    "wifi_params": {"chunk_size": 4096, "topk": 64, "use_dct": true, "H": 200}
+  },
+  "persistence": {
+    "bits": 4,
+    "group_size": 64,
+    "cache_dir": "~/.turboquant/kv-cache",
+    "max_ssd_gb": 50
+  }
+}

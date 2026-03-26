@@ -1,0 +1,19 @@
+{
+  "chunk_size": 4096,
+  "topk": 64,
+  "use_dct": false,
+  "H": 200,
+  "label": "wifi-raw",
+  "avg_score": 33166.03695563181,
+  "avg_throughput_mb_s": 5932.921054165032,
+  "avg_compression_ratio": 31.25,
+  "avg_stability_score": 1.0,
+  "nodes": [
+    "192.168.1.151",
+    "192.168.1.158",
+    "192.168.1.177",
+    "192.168.1.157"
+  ],
+  "n_rounds": 3,
+  "timestamp": 1774553475.697058
+}

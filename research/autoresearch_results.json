@@ -1,0 +1,307 @@
+{
+  "winner": {
+    "chunk_size": 4096,
+    "topk": 64,
+    "use_dct": false,
+    "H": 200,
+    "label": "wifi-raw",
+    "avg_score": 33166.03695563181,
+    "avg_throughput_mb_s": 5932.921054165032,
+    "avg_compression_ratio": 31.25,
+    "avg_stability_score": 1.0,
+    "nodes": [
+      "192.168.1.151",
+      "192.168.1.158",
+      "192.168.1.177",
+      "192.168.1.157"
+    ],
+    "n_rounds": 3,
+    "timestamp": 1774553475.697058
+  },
+  "leaderboard": [
+    {
+      "label": "wifi-raw",
+      "avg_score": 33166.03695563181,
+      "avg_throughput_mb_s": 5932.921054165032,
+      "avg_compression_ratio": 31.25,
+      "avg_stability_score": 1.0,
+      "rounds": 3,
+      "raw_results": [
+        {
+          "label": "wifi-raw",
+          "chunk_size": 4096,
+          "topk": 64,
+          "use_dct": false,
+          "H": 200,
+          "throughput_mb_s": 7251.583739151136,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 2.2710312634361546e-13,
+          "score": 40537.58546318511
+        },
+        {
+          "label": "wifi-raw",
+          "chunk_size": 4096,
+          "topk": 64,
+          "use_dct": false,
+          "H": 200,
+          "throughput_mb_s": 5126.898658481741,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 2.143122241086634e-13,
+          "score": 28660.23478529413
+        },
+        {
+          "label": "wifi-raw",
+          "chunk_size": 4096,
+          "topk": 64,
+          "use_dct": false,
+          "H": 200,
+          "throughput_mb_s": 5420.280764862219,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 3.2553116018768646e-13,
+          "score": 30300.29061841619
+        }
+      ]
+    },
+    {
+      "label": "tb4-raw",
+      "avg_score": 19335.660128528696,
+      "avg_throughput_mb_s": 4891.57808552438,
+      "avg_compression_ratio": 15.625,
+      "avg_stability_score": 1.0,
+      "rounds": 3,
+      "raw_results": [
+        {
+          "label": "tb4-raw",
+          "chunk_size": 8192,
+          "topk": 256,
+          "use_dct": false,
+          "H": 50,
+          "throughput_mb_s": 5305.919948700059,
+          "compression_ratio": 15.625,
+          "stability_score": 1.0,
+          "gradient_variance": 4.846495383833971e-13,
+          "score": 20973.490150519934
+        },
+        {
+          "label": "tb4-raw",
+          "chunk_size": 8192,
+          "topk": 256,
+          "use_dct": false,
+          "H": 50,
+          "throughput_mb_s": 5047.24540325779,
+          "compression_ratio": 15.625,
+          "stability_score": 1.0,
+          "gradient_variance": 3.4507135647163234e-13,
+          "score": 19950.989230137064
+        },
+        {
+          "label": "tb4-raw",
+          "chunk_size": 8192,
+          "topk": 256,
+          "use_dct": false,
+          "H": 50,
+          "throughput_mb_s": 4321.568904615293,
+          "compression_ratio": 15.625,
+          "stability_score": 1.0,
+          "gradient_variance": 8.377980384097206e-13,
+          "score": 17082.501004929094
+        }
+      ]
+    },
+    {
+      "label": "tb4-direct",
+      "avg_score": 18173.040729983422,
+      "avg_throughput_mb_s": 4652.298426875756,
+      "avg_compression_ratio": 15.2587890625,
+      "avg_stability_score": 1.0,
+      "rounds": 3,
+      "raw_results": [
+        {
+          "label": "tb4-direct",
+          "chunk_size": 16384,
+          "topk": 512,
+          "use_dct": false,
+          "H": 20,
+          "throughput_mb_s": 4753.479819369109,
+          "compression_ratio": 15.2587890625,
+          "stability_score": 1.0,
+          "gradient_variance": 8.521824738927375e-13,
+          "score": 18568.28054441058
+        },
+        {
+          "label": "tb4-direct",
+          "chunk_size": 16384,
+          "topk": 512,
+          "use_dct": false,
+          "H": 20,
+          "throughput_mb_s": 4621.311133677657,
+          "compression_ratio": 15.2587890625,
+          "stability_score": 1.0,
+          "gradient_variance": 5.618631102911886e-13,
+          "score": 18051.99661592835
+        },
+        {
+          "label": "tb4-direct",
+          "chunk_size": 16384,
+          "topk": 512,
+          "use_dct": false,
+          "H": 20,
+          "throughput_mb_s": 4582.104327580504,
+          "compression_ratio": 15.2587890625,
+          "stability_score": 1.0,
+          "gradient_variance": 7.363175824268153e-13,
+          "score": 17898.845029611344
+        }
+      ]
+    },
+    {
+      "label": "slow-link",
+      "avg_score": 4157.798880208099,
+      "avg_throughput_mb_s": 743.7696746334251,
+      "avg_compression_ratio": 31.25,
+      "avg_stability_score": 1.0,
+      "rounds": 3,
+      "raw_results": [
+        {
+          "label": "slow-link",
+          "chunk_size": 1024,
+          "topk": 16,
+          "use_dct": true,
+          "H": 500,
+          "throughput_mb_s": 874.4170333731994,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 1.3223274905604931e-11,
+          "score": 4888.13981826544
+        },
+        {
+          "label": "slow-link",
+          "chunk_size": 1024,
+          "topk": 16,
+          "use_dct": true,
+          "H": 500,
+          "throughput_mb_s": 711.435928204143,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 1.1974582783680354e-11,
+          "score": 3977.047742750309
+        },
+        {
+          "label": "slow-link",
+          "chunk_size": 1024,
+          "topk": 16,
+          "use_dct": true,
+          "H": 500,
+          "throughput_mb_s": 645.4560623229332,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 1.2275977109843517e-11,
+          "score": 3608.209079608549
+        }
+      ]
+    },
+    {
+      "label": "wifi-dct",
+      "avg_score": 1744.7231615511,
+      "avg_throughput_mb_s": 312.1055672917285,
+      "avg_compression_ratio": 31.25,
+      "avg_stability_score": 1.0,
+      "rounds": 3,
+      "raw_results": [
+        {
+          "label": "wifi-dct",
+          "chunk_size": 2048,
+          "topk": 32,
+          "use_dct": true,
+          "H": 300,
+          "throughput_mb_s": 366.1339684842957,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 2.0687892371418215e-11,
+          "score": 2046.751106006627
+        },
+        {
+          "label": "wifi-dct",
+          "chunk_size": 2048,
+          "topk": 32,
+          "use_dct": true,
+          "H": 300,
+          "throughput_mb_s": 292.5348438314142,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 1.359964484776155e-11,
+          "score": 1635.3194914858182
+        },
+        {
+          "label": "wifi-dct",
+          "chunk_size": 2048,
+          "topk": 32,
+          "use_dct": true,
+          "H": 300,
+          "throughput_mb_s": 277.64788955947574,
+          "compression_ratio": 31.25,
+          "stability_score": 1.0,
+          "gradient_variance": 1.0591109586566283e-11,
+          "score": 1552.098887160855
+        }
+      ]
+    },
+    {
+      "label": "tb4-dct",
+      "avg_score": 496.76566048840573,
+      "avg_throughput_mb_s": 125.67287604010203,
+      "avg_compression_ratio": 15.625,
+      "avg_stability_score": 1.0,
+      "rounds": 3,
+      "raw_results": [
+        {
+          "label": "tb4-dct",
+          "chunk_size": 4096,
+          "topk": 128,
+          "use_dct": true,
+          "H": 100,
+          "throughput_mb_s": 124.14116082047295,
+          "compression_ratio": 15.625,
+          "stability_score": 1.0,
+          "gradient_variance": 2.203923675503372e-11,
+          "score": 490.7110244624396
+        },
+        {
+          "label": "tb4-dct",
+          "chunk_size": 4096,
+          "topk": 128,
+          "use_dct": true,
+          "H": 100,
+          "throughput_mb_s": 131.4276262346213,
+          "compression_ratio": 15.625,
+          "stability_score": 1.0,
+          "gradient_variance": 2.451311896523034e-11,
+          "score": 519.5133079633782
+        },
+        {
+          "label": "tb4-dct",
+          "chunk_size": 4096,
+          "topk": 128,
+          "use_dct": true,
+          "H": 100,
+          "throughput_mb_s": 121.44984106521179,
+          "compression_ratio": 15.625,
+          "stability_score": 1.0,
+          "gradient_variance": 9.891697703989788e-12,
+          "score": 480.0726490393993
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    "192.168.1.151",
+    "192.168.1.158",
+    "192.168.1.177",
+    "192.168.1.157"
+  ],
+  "n_rounds": 3,
+  "timestamp": 1774553475.69706
+}

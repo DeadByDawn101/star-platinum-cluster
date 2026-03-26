@@ -165,8 +165,88 @@ uv run exo  # runs at http://localhost:52415
 5. **Phase 5** — Hardening: metrics, failover, monitoring dashboard
 6. **Phase 6** — Public release: documentation, benchmarks, packaging
 
+## TurboQuant + Grove Integration
+
+Star Platinum now integrates two powerful MLX libraries for distributed inference optimization:
+
+### TurboQuant-MLX
+
+KV cache compression that achieves near-optimal rate-distortion tradeoff with zero accuracy loss.
+
+| Bits | Cosine Sim | Compression | Use Case |
+|------|------------|-------------|----------|
+| 4-bit | 0.9939 | 2.8x | Production inference (recommended) |
+| 3-bit | 0.9723 | 2.8x | Memory-constrained |
+| 2-bit | 0.8572 | 2.8x | Extreme compression |
+
+**Features:**
+- **Polar coordinate quantization** — preserves attention patterns
+- **QJL residual correction** — recovers inner product accuracy
+- **FP16 attention sinks** — keeps first 128 tokens uncompressed
+- **Persistent KV cache** — 135x faster than reprocessing (7.5ms load vs 1010ms recompute)
+
+### Grove-MLX
+
+Distributed training with exo bridge and autoresearch parameter discovery.
+
+**Autoresearch Results (2026-03-26):**
+- Winner: `wifi-raw` — chunk_size=4096, topk=64, use_dct=False, H=200
+- Throughput: 5933 MB/s with 31.2x compression
+- Optimized for Star Platinum's mixed TB4/WiFi topology
+
+### Configuration
+
+Production config in `configs/turboquant_config.json`:
+
+```json
+{
+  "turboquant": {
+    "r_bits": 4,
+    "theta_bits": 4,
+    "fp16_sink_size": 128,
+    "compress_after": 128
+  },
+  "grove": {
+    "tb4_nodes": ["brain", "m3", "m1pro"],
+    "wifi_nodes": ["m2pro"],
+    "tb4_params": {"chunk_size": 8192, "topk": 256, "use_dct": false, "H": 50},
+    "wifi_params": {"chunk_size": 4096, "topk": 64, "use_dct": true, "H": 200}
+  },
+  "persistence": {
+    "bits": 4,
+    "cache_dir": "~/.turboquant/kv-cache",
+    "max_ssd_gb": 50
+  }
+}
+```
+
+### Scripts
+
+```bash
+# Check TurboQuant status on all nodes
+python3 scripts/integrate_turboquant.py --check-only
+
+# Full integration (setup cache dirs, apply exo patch, sync to workers)
+python3 scripts/integrate_turboquant.py --apply-patch --sync
+
+# Run autoresearch benchmark
+python3 scripts/run_autoresearch.py --rounds 5
+
+# Benchmark only (no Grove autoresearch)
+python3 scripts/run_autoresearch.py --turboquant-only
+```
+
+### Companion Repositories
+
+| Repo | Purpose |
+|------|---------|
+| [turboquant-mlx](https://github.com/DeadByDawn101/turboquant-mlx) | KV cache compression for Apple Silicon |
+| [grove-mlx](https://github.com/DeadByDawn101/grove-mlx) | Distributed training with autoresearch |
+
 ## References
 
 - [DirectReduce: A Scalable Ring AllReduce Offloading Architecture for Torus Topologies](https://ieeexplore.ieee.org/document/11062587) (IEEE IoT Journal, 2025)
 - [Inside the M4 Apple Neural Engine](https://maderix.substack.com/p/inside-the-m4-apple-neural-engine) (maderix, 2026)
 - [AppleNeuralEngine.framework Runtime Headers](https://github.com/nst/iOS-Runtime-Headers/tree/master/PrivateFrameworks/AppleNeuralEngine.framework)
+- [TurboQuant: Cost-Effective KV-Cache Compression](https://arxiv.org/abs/2504.19874) (arXiv, 2025)
+- [PolarQuant: Rotation-Based KV Cache Quantization](https://arxiv.org/abs/2502.02617) (arXiv, 2025)
