@@ -41,6 +41,13 @@ case "${1:-start}" in
     echo -e "${C}╚════════════════════════════════════════════════╝${N}"
     echo ""
 
+    # Sweep orphan exo processes before starting (prevents election storms)
+    echo -e "${Y}[sp]${N} Sweeping orphan exo processes..."
+    pkill -f '/exo/.venv/bin/exo' 2>/dev/null || true
+    pkill -f 'EXO_LIBP2P_NAMESPACE' 2>/dev/null || true
+    sleep 2
+    echo -e "${G}[ok]${N} Orphan sweep complete"
+
     # Create tmux session with auto-restart loop
     tmux new-session -d -s "$SESSION" bash -c "
         export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH
