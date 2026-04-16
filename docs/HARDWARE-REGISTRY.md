@@ -1,231 +1,178 @@
-# RavenX Cluster — Hardware Registry
+# HARDWARE REGISTRY
 
-## Node 1: iMac Pro (Control Center)
+Single source of truth for Star Platinum cluster hardware. Update this file when nodes are added, reconfigured, or retired.
 
-| Spec | Value |
-|------|-------|
-| **Model** | iMac Pro (Late 2017) |
-| **Model ID** | iMacPro1,1 (A1862) |
-| **CPU** | Intel Xeon W-2140B, 8-core / 16-thread, 3.2 GHz (Turbo 4.2 GHz) |
-| **L2 Cache** | 1 MB per core (8 MB total) |
-| **L3 Cache** | 11 MB |
-| **RAM** | 32 GB DDR4 ECC 2666 MHz |
-| **Storage** | 1 TB SSD (3.3 GB/s read, 2.8 GB/s write) |
-| **GPU** | AMD Radeon Pro Vega 56, 8 GB HBM2 |
-| **GPU Compute** | ~11 TFLOPS FP32 / ~22 TFLOPS FP16 |
-| **ANE** | **NONE** (Intel, pre-Apple Silicon) |
-| **Thunderbolt** | **4× Thunderbolt 3** (USB-C), 40 Gbps, dual-bus |
-| **Ethernet** | 10 Gb Nbase-T |
-| **USB** | 4× USB 3.0 Type-A |
-| **Bluetooth** | 4.2 |
-| **Wi-Fi** | 802.11ac |
-| **Security** | Apple T2 chip (Secure Enclave, encrypted storage) |
-
-### Cluster role implications
-
-- **No ANE**: Cannot run ANE compute workloads. Role is purely control plane + Vega GPU compute.
-- **Thunderbolt 3** (not TB4/TB5): Still 40 Gbps, same raw bandwidth as TB4. But lacks TB4's mandatory Intel VT-d DMA protection and USB4 tunneling. OdinLink *may* work over TB3 since the NHI ring DMA mechanism is fundamentally the same, but untested.
-- **Vega 56 GPU**: 22 TFLOPS FP16 via Metal 3. This is actually MORE raw FP16 TFLOPS than a single M4 Max ANE (19 TFLOPS). Could serve as a GPU compute node for specific workloads.
-- **10GbE**: Can serve as a high-speed network fallback if TB3 proves problematic for RDMA.
-- **ECC RAM**: 32 GB ECC — reliability advantage for long-running cluster operations.
-- **Intel x86**: Can run standard Linux tools, rdma-core, etc. if needed. macOS on Intel supports a different set of frameworks than Apple Silicon.
-
-### Revised cluster role
-
-The iMac Pro should be recategorized from "TB4 control center" to:
-- **Cluster control plane** (exo dashboard, monitoring, scheduling)
-- **GPU compute node** (Vega 56 for Metal workloads, 22 TFLOPS FP16)
-- **Network bridge** (TB3 hub connecting M4 Max ↔ Beast via dual TB3 buses)
-- **NOT an ANE node** (zero ANE capability)
+**Last updated:** 2026-04-16
 
 ---
 
-## Node 2: MacBook Pro M4 Max (Brain)
+## Active fleet
 
-| Spec | Value |
-|------|-------|
-| **Model** | MacBook Pro (14-inch, M4 Max, 2024) |
-| **Model ID** | Mac16,6 (A3185) |
-| **Chip** | Apple M4 Max |
-| **CPU** | 16-core (12 Performance + 4 Efficiency) |
-| **GPU** | 40-core Apple GPU, Metal 4 |
-| **GPU Compute** | ~54 TFLOPS FP16 (estimated from 40-core M4 Max benchmarks) |
-| **Neural Engine** | 16-core ANE, 38 TOPS INT8 / **19 TFLOPS FP16 true** |
-| **Memory** | **128 GB** unified LPDDR5X |
-| **Memory Bandwidth** | 546 GB/s |
-| **Storage** | 1 TB SSD |
-| **Thunderbolt** | **3× Thunderbolt 5** (USB-C), 120 Gbps max |
-| **HDMI** | 1× HDMI 2.1 |
-| **Wi-Fi** | Wi-Fi 6E (802.11ax) |
-| **Bluetooth** | 5.3 |
-| **Display** | 14.2" 3024×1964 Liquid Retina XDR |
+### Node 1 — `m3-ultra` (Brain A)
 
-### Cluster role: Brain
+| Attribute | Value |
+|---|---|
+| Chassis | Mac Studio (2025) |
+| Chip | Apple M3 Ultra |
+| CPU | 28-core (20 performance + 8 efficiency), 4.0 GHz |
+| GPU | 60-core Metal, hardware ray tracing |
+| Neural Engine | 32-core (~38 TFLOPS FP16 est.) |
+| Memory | 96 GB unified, 819 GB/s bandwidth |
+| Storage | 1 TB SSD (not user-accessible) |
+| Ports | 6× Thunderbolt 5, 2× USB-A, HDMI 2.1, 10GbE, SDXC |
+| Headless | Yes (BetterDisplay 5K virtual screen, Parsec remote) |
+| Network | Tailscale: `mac-studio.beardie-ph.ts.net` |
+| Role | **Brain A** — OpenClaw runtime, orchestration, scheduler, routing |
+| exo role | Master / primary scheduler |
 
-- **128 GB unified memory**: Fits Qwen 72B+ entirely in memory. Crown jewel of the cluster.
-- **Thunderbolt 5**: 120 Gbps (3× the iMac Pro's TB3). Native OdinLink target. 3 ports = direct links to 2 nodes + 1 peripheral.
-- **19 TFLOPS ANE**: Primary ANE compute. At 94% utilization (32+ chained ops) = ~17.9 sustained TFLOPS.
-- **~54 TFLOPS GPU**: 40-core Metal 4 GPU. Handles decode phase in hybrid ANE-prefill/GPU-decode strategy.
-- **546 GB/s bandwidth**: Feeds ANE + GPU without bottleneck for large model inference.
+### Node 2 — `m4-max-128` (Brain B)
 
-## Node 3: MacBook Pro M3 (ANE Worker)
+| Attribute | Value |
+|---|---|
+| Chassis | MacBook Pro 14" |
+| Chip | Apple M4 Max |
+| CPU | 16-core (12P + 4E) |
+| GPU | 40-core Metal |
+| Neural Engine | 16-core (~19 TFLOPS FP16) |
+| Memory | 128 GB unified |
+| Storage | 1 TB SSD |
+| Ports | 3× Thunderbolt 5, HDMI, SDXC |
+| Headless | Yes (lid closed, external display not attached) |
+| Role | **Brain B** — heavy inference, training, long-context |
+| exo role | Primary worker, invoked by Brain A for size > 8B |
 
-| Spec | Value |
-|------|-------|
-| **Model** | MacBook Pro (14-inch, M3, Late 2023) |
-| **Model ID** | Mac15,3 (A2918) |
-| **Chip** | Apple M3 (base) |
-| **CPU** | 8-core (4 Performance + 4 Efficiency), 4.05 GHz |
-| **GPU** | 10-core Apple GPU, Metal 4 |
-| **GPU Compute** | ~3.6 TFLOPS FP32 / ~7 TFLOPS FP16 (estimated) |
-| **Neural Engine** | 16-core ANE, 18 TOPS INT8 / **9 TFLOPS FP16 true** |
-| **Memory** | 24 GB unified LPDDR5 |
-| **Memory Bandwidth** | 100 GB/s |
-| **Storage** | 2 TB SSD |
-| **Thunderbolt** | **2× Thunderbolt 4** (USB-C), 40 Gbps |
-| **HDMI** | 1× HDMI 2.1 |
-| **Wi-Fi** | Wi-Fi 6E (802.11ax) |
-| **Bluetooth** | 5.3 |
-| **Display** | 14.2" 3024×1964 Liquid Retina XDR |
+### Node 3 — `m3-24`
 
-### Cluster role implications
+| Attribute | Value |
+|---|---|
+| Chassis | MacBook Pro 14" |
+| Chip | Apple M3 |
+| CPU | 8-core (4P + 4E) |
+| GPU | 10-core Metal |
+| Neural Engine | 16-core (~9 TFLOPS FP16) |
+| Memory | 24 GB unified |
+| Storage | 2 TB SSD |
+| Ports | 2× Thunderbolt 4 |
+| Role | Pipeline parallel worker, model cache |
+| exo role | ANE worker |
 
-- **Base M3, NOT M3 Pro/Max**: This is the entry-level chip. Only 8 CPU cores, 10 GPU cores, 24 GB RAM. Significantly less capable than the M4 Max brain.
-- **Only 2× Thunderbolt 4** (not TB5): 40 Gbps, same as iMac Pro TB3. The M4 Max has 3× TB5 at 120 Gbps — the link from M4 Max to this node will be bottlenecked at 40 Gbps by this end.
-- **9 TFLOPS FP16 ANE**: Half the M4 Max's ANE throughput. Still useful but not a powerhouse. The M3 ANE is the same 16-core design but clocked lower.
-- **24 GB memory**: Can hold ~12B parameter models. Too small for 32B+ without sharding.
-- **100 GB/s bandwidth**: 5.5× slower than M4 Max. Will bottleneck large model inference.
-- **2 TB storage**: Largest SSD in the cluster. Good candidate for model cache and checkpoint staging.
+### Node 4 — `m4-max-36` (incoming)
 
-### Revised cluster role
+| Attribute | Value |
+|---|---|
+| Chassis | Mac Studio (2025) |
+| Chip | Apple M4 Max |
+| CPU | 14-core (10P + 4E) |
+| GPU | 32-core Metal |
+| Neural Engine | 16-core (~19 TFLOPS FP16) |
+| Memory | 36 GB unified |
+| Storage | 512 GB SSD |
+| Ports | 4× Thunderbolt 5, HDMI, 10GbE |
+| Role | Tensor parallel shard, ANE worker |
+| exo role | ANE worker |
+| Status | **Hardware incoming** |
 
-Original plan called this "ANE worker" with assumed M4-class specs. Reality check:
-- **Light ANE compute node**: 9 TFLOPS ANE, useful for pipeline parallel shards of smaller layers
-- **Overflow storage**: 2 TB SSD for model/checkpoint staging
-- **Pipeline parallel tail**: In a 2-node pipeline (M4 Max + M3), the M3 handles the last N layers proportional to its 24 GB (exo's memory-proportional sharding)
-- **NOT a primary compute peer**: The M4 Max has 5.3× more memory, 5.5× more bandwidth, 2× more ANE TFLOPS, and 3× faster TB links
+### Node 5 — `rtx-3090` (CUDA sidecar, incoming)
 
-## Node 4: Mac Pro 2013 "Trashcan" — Beast Linux
+| Attribute | Value |
+|---|---|
+| Enclosure | Sonnet Breakaway Box 850 T5 |
+| GPU | NVIDIA RTX 3090 (Ampere) |
+| VRAM | 24 GB GDDR6X |
+| CUDA cores | 10,496 |
+| TFLOPS | ~35 FP16, ~71 Tensor (FP16) |
+| Connection | Thunderbolt 5 (80 Gbps) → attached to `m3-ultra` |
+| Power | 850W internal PSU (GPU TDP 350W) |
+| Driver | Tiny Corp eGPU driver (Apple-approved, compiled via Docker) |
+| Role | CUDA-native inference (vLLM, exllama), QLoRA fine-tuning |
+| exo role | Device-class `cuda` — routed via `configs/routing.yaml` |
+| Status | **Hardware incoming** |
+| Notes | Not on TB RDMA ring. No macOS display output — compute-only. |
 
-| Spec | Value |
-|------|-------|
-| **Model** | Mac Pro (Late 2013) "Trashcan" |
-| **Model ID** | MacPro6,1 |
-| **OS** | Ubuntu Linux (kernel 6.8.0-101-generic) |
-| **CPU** | Intel Xeon E5-1680 v2, 8-core / 16-thread, 3.0 GHz (Turbo 3.9 GHz) |
-| **RAM** | **64 GB** DDR3 ECC 1866 MHz |
-| **GPU** | 2× AMD Radeon HD 7870 XT (Tahiti LE / FirePro D700) |
-| **GPU Compute** | ~5 TFLOPS FP32 combined (GCN 1.0, no modern compute) |
-| **ANE** | **NONE** (Intel x86) |
-| **Storage** | 1 TB Apple SSD SM1024 |
-| **Thunderbolt** | **Thunderbolt 2** (Falcon Ridge DSL5520), 3× NHI controllers, **20 Gbps** |
-| **Ethernet** | 2× Gigabit (enp11s0 active, enp12s0 down) |
-| **USB** | USB 2.0 (EHCI) + USB 3.0 (Fresco Logic FL1100) |
-| **Networking** | Tailscale VPN active, Docker with multiple bridge networks |
-| **RDMA** | **NOT installed** — no hardware RDMA (no IB HCA, no RoCE NIC) |
+### Node 6 — `beast`
 
-### Critical findings — THIS CHANGES THE ARCHITECTURE
+| Attribute | Value |
+|---|---|
+| Chassis | Mac Pro 2013 (cylinder) |
+| CPU | Intel Xeon E5-1680 v2 (8-core, 3.0 GHz) |
+| GPU | Dual AMD FirePro D500 (3 GB each) — unused |
+| Memory | 64 GB DDR3 ECC |
+| Storage | 1 TB SSD (PCIe) + external |
+| Network | 10GbE, Tailscale |
+| TB ports | 4× Thunderbolt 3 (not on ring) |
+| OS | **Linux** (file/Docker server) |
+| Role | **File server** — cluster storage, Docker host, backups, `rdma-core` reference |
+| Cluster link | Ethernet / Tailscale (not on TB RDMA ring) |
 
-1. **Thunderbolt 2 (20 Gbps), NOT TB3/TB4/TB5**: The Falcon Ridge DSL5520 is a 2013 TB2 controller. OdinLink requires TB4/TB5 NHI ring DMA — a completely different hardware interface. **OdinLink will NOT work on this machine.** The NHI register set and ring descriptor format are incompatible.
+### Node 7 — `m2-air`
 
-2. **Kernel 6.8.0**: OdinLink requires kernel 6.18+. Even if TB2 were compatible, the kernel is too old. Upgrading is possible but doesn't fix the TB2 hardware limitation.
-
-3. **No RDMA hardware**: No InfiniBand HCA, no RoCE NIC. rdma-core can be installed but there's nothing to drive. Software RDMA (rxe/SoftiWARP) is possible but runs over Ethernet at CPU cost — no hardware offload.
-
-4. **Dual GPUs are obsolete**: Radeon HD 7870 XT is 2012 GCN 1.0. No ROCm, no Metal, no modern compute API. Display-only.
-
-5. **64 GB RAM is the saving grace**: Second-largest memory pool after the M4 Max. Useful for CPU workloads.
-
-6. **Already a Docker server**: Running containers with bridge networks. Functional infrastructure host.
-
-7. **Tailscale active**: Reachable remotely. Good for management plane.
-
-8. **1 Gbps Ethernet only**: This is the realistic data link speed to the cluster. 100× slower than even TB3.
-
-### Revised cluster role
-
-The Beast **cannot** be an RDMA transport node. New role:
-- **Docker service host**: DirectReduce as a containerized service, monitoring stacks, API gateways
-- **CPU compute**: 8-core Xeon + 64 GB for tokenization, data preprocessing, checkpoint management
-- **Network storage**: 1 TB SSD over Gigabit Ethernet (or Tailscale)
-- **Software-only DirectReduce**: Python/numpy gradient reduction, but at 1 Gbps speeds
-- **NOT on the Thunderbolt data plane**: TB2 is incompatible with entire cluster RDMA strategy
-
----
-
-## Node 5: MacBook Pro M2 Pro 16" (Role TBD)
-
-| Spec | Value |
-|------|-------|
-| **Model** | MacBook Pro (16-inch, M2 Pro, 2023) |
-| **Model ID** | Mac14,10 (A2780) |
-| **Chip** | Apple M2 Pro |
-| **CPU** | 12-core (8P + 4E) |
-| **GPU** | 19-core Apple GPU, Metal 4 |
-| **Neural Engine** | 16-core ANE, 15.8 TOPS INT8 / **7.9 TFLOPS FP16 true** |
-| **Memory** | 16 GB unified LPDDR5 @ 200 GB/s |
-| **Storage** | 500 GB SSD |
-| **Thunderbolt** | **3× Thunderbolt 4** (USB-C), 40 Gbps |
-
-### Cluster role: AWAITING ASSIGNMENT
-
-This machine has 3× TB4 ports and ANE compute. Could potentially:
-- Replace the Beast as a TB4-connected compute node
-- Serve as a third ANE node in the ring (7.9 TFLOPS)
-- Act as portable cluster monitoring/access
+| Attribute | Value |
+|---|---|
+| Chassis | MacBook Air 2022 |
+| Chip | Apple M2 |
+| CPU | 10-core |
+| GPU | 10-core Metal |
+| Neural Engine | 16-core |
+| Memory | 16 GB unified |
+| Ports | 2× USB4 |
+| Role | Remote SSH access + OpenClaw client for mobile use |
+| Cluster link | Tailscale (not on TB ring) |
 
 ---
 
-## Node 6: MacBook Air M2 (Remote SSH Access)
+## Retired nodes
 
-| Spec | Value |
-|------|-------|
-| **Model** | MacBook Air (M2, 2022) |
-| **Chip** | Apple M2 |
-| **ANE** | 16-core, 15.8 TOPS INT8 / ~7.9 TFLOPS FP16 |
-| **Thunderbolt** | 2× Thunderbolt / USB 4 (MagSafe charging) |
-
-*Role: SSH remote access into all cluster nodes + OpenClaw. Not on TB data plane.*
+| Node | Chip | Memory | Retirement reason |
+|---|---|---|---|
+| `m1-pro` | M1 Pro | 16 GB | Sold to fund more CUDA (3090 / 5090) |
+| `m2-pro` | M2 Pro | 16 GB | Sold to fund more CUDA |
+| `imac-pro` | Xeon W-2140B + Vega 64 | 32 GB | Retired entirely (reassigned to other work) |
 
 ---
 
-*Updated: March 2026*
-*Run `system_profiler SPHardwareDataType SPDisplaysDataType SPThunderboltDataType` on each node to fill in specs.*
+## Totals
+
+| Metric | Apple Silicon ring | CUDA sidecar | Combined |
+|---|---|---|---|
+| Nodes | 4 | 1 | 5 compute |
+| Unified memory | 284 GB | — | — |
+| CUDA VRAM | — | 24 GB | 24 GB |
+| ANE TFLOPS (FP16) | ~80 | — | ~80 |
+| Apple GPU TFLOPS (FP16) | ~90 | — | ~90 |
+| CUDA TFLOPS (FP16 tensor) | — | ~71 | ~71 |
+
+**Plus:** 64 GB on Beast (CPU compute, storage), 24 GB on M2 Air (remote control).
 
 ---
 
-## Node 7: MacBook Pro M1 Pro 16" (ANE Compute)
+## Thunderbolt topology
 
-| Spec | Value |
-|------|-------|
-| **Model** | MacBook Pro (16-inch, M1 Pro, 2021) |
-| **Model ID** | MacBookPro18,1 (A2485) |
-| **Chip** | Apple M1 Pro |
-| **CPU** | 10-core (8P + 2E), 3.2 GHz |
-| **GPU** | 16-core Apple GPU, Metal 3 |
-| **GPU Compute** | ~5.2 TFLOPS FP16 |
-| **Neural Engine** | 16-core ANE, 22 TOPS INT8 / **11.0 TFLOPS FP16 true** |
-| **Memory** | 16 GB unified LPDDR5 @ 200 GB/s |
-| **Memory Bandwidth** | 200 GB/s |
-| **Storage** | 1 TB SSD |
-| **Thunderbolt** | **3× Thunderbolt 4** (USB-C), 40 Gbps |
-| **HDMI** | 1× HDMI 2.0 |
-| **MagSafe** | MagSafe 3 charging |
-| **Wi-Fi** | Wi-Fi 6 (802.11ax) |
-| **Bluetooth** | 5.0 |
+```
+                     M3 Ultra (Brain A)
+                          │
+         ┌────────────────┼──────────────────┐
+      TB5│120G        TB5│80G            TB5│120G
+         ▼                ▼                   ▼
+   M4 Max 128        RTX 3090             M4 Max 36
+   (Brain B)       (CUDA sidecar          (worker)
+                    — off-ring)                │
+         │                                     │
+         └────────────TB4 ring (40G)───────────┤
+                          │                    │
+                          ▼                    │
+                      M3 24GB ─────────────────┘
+                      (worker)
+```
 
-### Cluster role: ANE Compute Node
+Ring links: **M3 Ultra ↔ M4 Max 128 ↔ M4 Max 36 ↔ M3 24 ↔ M3 Ultra** (4-node Apple Silicon DMA ring).
+Sidecar: **M3 Ultra ↔ 3090** via TB5, CUDA-only, off-ring.
 
-- **11 TFLOPS FP16 ANE**: Second-highest ANE throughput after M4 Max (19T). This is a serious compute node.
-- **3× Thunderbolt 4**: Full ring connectivity — can link to 2 nodes + 1 peripheral.
-- **16 GB unified memory**: Same as M2 Pro. Can hold ~8B parameter models. Shards of larger models via exo.
-- **200 GB/s bandwidth**: 2× the M3, same as M2 Pro. Good ANE feed rate.
-- **1 TB SSD**: Matches M4 Max storage. Ample model cache.
-- **M1 Pro architecture**: First-gen Apple Silicon pro chip. Proven stable, well-understood by exo.
+---
 
-### Ring position: Between M4 Max and M3
+## Change log
 
-The M1 Pro's 3× TB4 ports make it the ideal second hop from the M4 Max brain.
-Its 11 TFLOPS ANE is the second-strongest compute in the ring, so placing it
-adjacent to the brain minimizes latency for the heaviest shards.
-
+- **2026-04-16** — Major fleet rewrite. M3 Ultra promoted to Brain A. M4 Max 128 → Brain B. M4 Max 36 added (incoming). RTX 3090 added as CUDA sidecar (incoming). M1 Pro, M2 Pro, iMac Pro retired. Beast confirmed Linux on TB3 (4 ports, not on ring).
+- **2026-03-26** — Grove autoresearch run: `wifi-raw` config wins for mixed-topology.
+- **2026-01-XX** — TurboQuant-MLX PR #1 merged into TriAttention.
+- **2025-12-XX** — exo scheduler replaced legacy custom scheduler.
+- **2025-11-XX** — 4-node RDMA ring bringup (original M4 Max MBP / M1 Pro / M2 Pro / M3 / iMac Pro).

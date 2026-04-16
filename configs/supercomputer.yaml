@@ -1,315 +1,214 @@
-# Star Platinum Cluster — RavenX Supercomputer Configuration
-# Unifies: exo (scheduler) + ANE (compute) + DirectReduce (collectives) + OdinLink (transport)
-#
-# 5-NODE THUNDERBOLT RING (updated 2026-03-22):
-#
-#   M4 Max (128GB) ──TB5/TB4──▶ M1 Pro (16GB) ──TB4──▶ iMac Pro (32GB)
-#       ▲                                                      │
-#       │                                                   TB3/TB4
-#       └──TB5/TB4── M3 (24GB) ◀──TB4── M2 Pro (16GB) ◀────────┘
-#
-# Ring order (by ANE TFLOPS): M4 Max 19T → M1 Pro 11T → iMac Pro 0T → M2 Pro 7.9T → M3 9T
-# Total: 200GB unified memory │ 46.9 ANE TFLOPS │ ~97 GPU TFLOPS FP16
-# Beast Linux: Ethernet only (TB2 incompatible with OdinLink) — Docker/services host
+# Star Platinum Cluster — full cluster configuration
+# Source of truth for exo, OpenClaw routing, and orchestration.
+# Last updated: 2026-04-16
 
 cluster:
-  name: "star-platinum"
-  version: "1.1"  # added M1 Pro to ring
-  mode: "supercomputer"  # modes: standalone, cluster, supercomputer
+  name: star-platinum
+  owner: ravenx
+  version: "2.0"        # bumped for dual-brain + CUDA sidecar
+  topology: dual-brain-ring-plus-sidecar
 
-# ─── Node definitions ───────────────────────────────────────────────
+# ─── Brains ──────────────────────────────────────────────────────────────────
+brains:
+  primary:              # Brain A — always-on orchestration
+    node: m3-ultra
+    responsibilities:
+      - openclaw-runtime
+      - scheduler
+      - routing
+      - session-state
+      - memory
+      - skills
+      - small-model-inference     # < 8B models run here directly
+  secondary:            # Brain B — heavy compute
+    node: m4-max-128
+    responsibilities:
+      - heavy-inference
+      - training
+      - long-context
+      - prefill
+    invoked_when:
+      - model.params_b >= 8
+      - task in [training, fine-tune, long-context-generate]
 
+# ─── Nodes ───────────────────────────────────────────────────────────────────
 nodes:
-  m4-max-brain:
-    role: brain
-    model: MacBook Pro 14-inch (Mac16,6, 2024)
-    model_id: MacBookPro16,6
-    silicon: Apple M4 Max
-    cpu_cores: 16 (12P + 4E)
+
+  m3-ultra:
+    status: active
+    chassis: mac-studio-2025
+    chip: apple-m3-ultra
+    cpu_cores: 28                 # 20P + 8E
+    gpu_cores: 60
+    ane_cores: 32
+    ane_tflops_fp16: 38
+    gpu_tflops_fp16: 27
+    memory_gb: 96
+    mem_bandwidth_gbps: 819
+    storage_tb: 1
+    tb_ports: { tb5: 6 }
+    ethernet: 10gbe
+    headless: true
+    tailscale_host: mac-studio.beardie-ph.ts.net
+    role: brain-a
+    device_classes: [ane, metal, cpu]
+    ring_member: true
+    ring_neighbors: [m4-max-128, m3-24]
+    sidecar_host_for: [rtx-3090]
+
+  m4-max-128:
+    status: active
+    chassis: mbp-14
+    chip: apple-m4-max
+    cpu_cores: 16
     gpu_cores: 40
-    gpu_tflops_fp16: 54.0
-    ane_tops: 38.0
-    ane_tflops_fp16: 19.0
-    unified_memory_gb: 128
-    memory_bandwidth_gbps: 546
-    metal_version: 4
+    ane_cores: 16
+    ane_tflops_fp16: 19
+    gpu_tflops_fp16: 54
+    memory_gb: 128
     storage_tb: 1
-    thunderbolt: "3× TB5 (120 Gbps)"
-    services:
-      - exo-master
-      - directreduce
-      - ane-worker
-    connections:
-      # Ring link 1: Brain → M1 Pro (strongest ANE neighbor)
-      - target: m1pro-compute
-        type: tb5-to-tb4
-        bandwidth_gbps: 40
-        note: "TB5 port on M4 Max → TB4 port on M1 Pro; capped at 40G by M1 Pro end"
-      # Ring link 5 (close ring): M3 → Brain
-      - target: mac-node-2
-        type: tb5-to-tb4
-        bandwidth_gbps: 40
-        note: "Ring close: M3 connects back to M4 Max brain"
+    tb_ports: { tb5: 3 }
+    headless: true
+    role: brain-b
+    device_classes: [ane, metal, cpu]
+    ring_member: true
+    ring_neighbors: [m3-ultra, m4-max-36]
 
-  imac-pro-control:
-    role: control-center
-    silicon: Intel Xeon W-2140B (8-core, 3.2 GHz)
-    model: iMacPro1,1 (Late 2017)
-    model_id: iMacPro1,1
-    ram: 32 GB DDR4 ECC 2666 MHz
-    gpu: AMD Radeon Pro Vega 56 (8 GB HBM2)
-    gpu_tflops_fp16: 22.0
-    ane_tops: 0  # Intel — NO ANE
-    storage: 1 TB SSD
-    ethernet: 10GbE Nbase-T
-    security_chip: Apple T2
-    thunderbolt: "4× TB3 (40 Gbps)"
-    services:
-      - exo-worker
-      - cluster-dashboard
-      - directreduce
-      - vega-gpu-compute  # 22 TFLOPS FP16 via Metal 3
-    connections:
-      # Ring link 2 (reverse): iMac ← M1 Pro
-      - target: m1pro-compute
-        type: tb3-to-tb4
-        bandwidth_gbps: 40
-      # Ring link 3: iMac Pro → M2 Pro
-      - target: m2pro-compute
-        type: tb3-to-tb4
-        bandwidth_gbps: 40
-
-  mac-node-2:
-    role: ane-worker-light
-    model: MacBook Pro 14-inch (Mac15,3, Late 2023)
-    model_id: Mac15,3
-    silicon: Apple M3 (base)
-    cpu_cores: 8 (4P + 4E)
-    gpu_cores: 10
-    gpu_tflops_fp16: 7.0
-    ane_tops: 18.0
-    ane_tflops_fp16: 9.0
-    unified_memory_gb: 24
-    memory_bandwidth_gbps: 100
-    storage_tb: 2
-    metal_version: 4
-    thunderbolt: "2× TB4 (40 Gbps)"
-    services:
-      - exo-worker
-      - ane-worker
-    connections:
-      # Ring link 4 (reverse): M3 ← M2 Pro
-      - target: m2pro-compute
-        type: tb4
-        bandwidth_gbps: 40
-      # Ring link 5: M3 → M4 Max (closes the ring)
-      - target: m4-max-brain
-        type: tb4-to-tb5
-        bandwidth_gbps: 40
-
-  beast-linux:
-    role: docker-service-host  # NOT rdma-server — TB2 incompatible
-    model: Mac Pro (Late 2013) "Trashcan" MacPro6,1
-    silicon: Intel Xeon E5-1680 v2 (8-core, 3.0 GHz)
-    ram_gb: 64  # DDR3 ECC — NOT unified memory
-    gpu: 2× AMD Radeon HD 7870 XT (GCN 1.0, display-only)
-    ane_tops: 0  # Intel x86 — no ANE
-    storage_tb: 1
-    kernel: 6.8.0-101-generic
-    thunderbolt: TB2 (Falcon Ridge DSL5520, 20 Gbps) # INCOMPATIBLE with OdinLink
-    services:
-      - directreduce-software  # CPU/numpy reduction only
-      - docker-host
-      - checkpoint-storage
-      - tailscale-vpn
-    connections:
-      - target: cluster-lan
-        type: ethernet
-        bandwidth_gbps: 1  # Gigabit only — NOT 10GbE
-        note: "TB2 cannot run OdinLink. 1GbE is the only data path."
-
-  m1pro-compute:
-    role: ane-compute
-    model: MacBook Pro 16-inch (MacBookPro18,1, 2021)
-    model_id: MacBookPro18,1
-    model_number: MK183LL/A
-    silicon: Apple M1 Pro
-    cpu_cores: 10 (8P + 2E)
-    gpu_cores: 16
-    gpu_tflops_fp16: 5.2
-    ane_tops: 22.0
-    ane_tflops_fp16: 11.0
-    unified_memory_gb: 16
-    memory_bandwidth_gbps: 200
+  m4-max-36:
+    status: incoming
+    chassis: mac-studio-2025
+    chip: apple-m4-max
+    cpu_cores: 14
+    gpu_cores: 32
+    ane_cores: 16
+    ane_tflops_fp16: 19
+    gpu_tflops_fp16: 20
+    memory_gb: 36
     storage_tb: 0.5
-    metal_version: 4
-    thunderbolt: "3× TB4 (40 Gbps)"
-    note: "Node 3 — confirmed specs 2026-03-22"
-    services:
-      - exo-worker
-      - ane-worker
-      - directreduce
-    connections:
-      # Ring link 1 (reverse): M1 Pro → Brain
-      - target: m4-max-brain
-        type: tb4-to-tb5
-        bandwidth_gbps: 40
-      # Ring link 2: M1 Pro → iMac Pro
-      - target: imac-pro-control
-        type: tb4-to-tb3
-        bandwidth_gbps: 40
+    tb_ports: { tb5: 4 }
+    ethernet: 10gbe
+    headless: false
+    role: worker
+    device_classes: [ane, metal, cpu]
+    ring_member: true
+    ring_neighbors: [m4-max-128, m3-24]
 
-  m2pro-compute:
-    role: ane-compute
-    model: MacBook Pro 16-inch (Mac14,10, 2023)
-    model_id: Mac14,10
-    silicon: Apple M2 Pro
-    cpu_cores: 12 (8P + 4E)
-    gpu_cores: 19
-    gpu_tflops_fp16: 14.0
-    ane_tops: 15.8
-    ane_tflops_fp16: 7.9
-    unified_memory_gb: 16
-    memory_bandwidth_gbps: 200
-    storage_gb: 500
-    metal_version: 4
-    thunderbolt: "3× TB4 (40 Gbps)"
-    services:
-      - exo-worker
-      - ane-worker
-      - directreduce
-    connections:
-      # Ring link 3 (reverse): M2 Pro ← iMac Pro
-      - target: imac-pro-control
-        type: tb4-to-tb3
-        bandwidth_gbps: 40
-      # Ring link 4: M2 Pro → M3
-      - target: mac-node-2
-        type: tb4
-        bandwidth_gbps: 40
+  m3-24:
+    status: active
+    chassis: mbp-14
+    chip: apple-m3
+    cpu_cores: 8
+    gpu_cores: 10
+    ane_cores: 16
+    ane_tflops_fp16: 9
+    gpu_tflops_fp16: 7
+    memory_gb: 24
+    storage_tb: 2
+    tb_ports: { tb4: 2 }
+    role: worker
+    device_classes: [ane, metal, cpu]
+    ring_member: true
+    ring_neighbors: [m4-max-36, m3-ultra]
 
-# ─── exo scheduler configuration ────────────────────────────────────
+  rtx-3090:
+    status: incoming
+    chassis: sonnet-breakaway-850-t5
+    gpu: nvidia-rtx-3090
+    vram_gb: 24
+    cuda_cores: 10496
+    tflops_fp16_tensor: 71
+    connection: { type: tb5, attached_to: m3-ultra }
+    psu_watts: 850
+    gpu_tdp_watts: 350
+    driver: tinycorp-egpu
+    ring_member: false
+    device_classes: [cuda]
+    supported_formats: [gguf, awq, gptq, safetensors-pytorch]
+    backends: [vllm, exllama-v2, llama-cpp, transformers]
 
-exo:
-  discovery: mdns
-  api_port: 52415
-  rdma_enabled: true
-  thunderbolt_bridge: disabled  # must be disabled for RDMA
+  beast:
+    status: active
+    chassis: mac-pro-2013
+    cpu: intel-xeon-e5-1680-v2
+    cpu_cores: 8
+    memory_gb: 64
+    storage_tb: 1
+    ethernet: 10gbe
+    tb_ports: { tb3: 4 }        # Not wired into the RDMA ring
+    os: linux
+    ring_member: false
+    device_classes: [cpu]
+    role: file-server
+    services: [docker, nfs, backups, rdma-core-reference]
 
-  placement:
-    prefer_rdma_cycles: true
-    memory_overcommit: false
-    ane_weight_factor: 1.5  # prefer ANE-capable nodes for compute shards
+  m2-air:
+    status: active
+    chassis: mbp-air-2022
+    chip: apple-m2
+    cpu_cores: 10
+    gpu_cores: 10
+    ane_cores: 16
+    memory_gb: 16
+    ring_member: false
+    device_classes: [ane, metal, cpu]
+    role: remote-access
+    notes: Tailscale SSH + OpenClaw client
 
-  models:
-    core:
-      primary: "ollama/qwen2.5:32b"
-      upgrade_target: "ollama/qwen2.5:72b"
+# ─── Retired ─────────────────────────────────────────────────────────────────
+retired:
+  - { node: m1-pro,   reason: sold-for-cuda-expansion, date: 2026-04 }
+  - { node: m2-pro,   reason: sold-for-cuda-expansion, date: 2026-04 }
+  - { node: imac-pro, reason: reassigned, date: 2026-04 }
 
-    fallbacks:
-      - "anthropic/claude-sonnet-4-6"
-      - "openai-codex/gpt-5.3-codex"
-      - "xai/grok-4"
-      - "google/gemini-2.0-flash"
-      - "minimax-portal/MiniMax-M2.5"
+# ─── Device-class routing ────────────────────────────────────────────────────
+device_classes:
 
-# ─── ANE compute configuration ──────────────────────────────────────
+  ane:
+    nodes: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+    total_tflops_fp16: 85
+    workloads: [prefill, all-reduce, small-model-inference, embedding]
+    qos: [real-time, background]
 
-ane:
-  enabled: true
-  bridge_dylib: "~/Projects/ANE/bridge/libane_bridge.dylib"
+  metal:
+    nodes: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+    total_tflops_fp16: 108
+    workloads: [mlx-inference, lora-fine-tune]
 
-  dispatch:
-    inference_qos: real_time    # 0x31 — _ANEQoSMapper.aneRealTimeTaskQoS
-    reduction_qos: background   # 0x09 — _ANEQoSMapper.aneBackgroundTaskQoS
-    max_queue_depth: 127
-    compile_limit_per_process: 110  # restart exec() before hitting 119
+  cuda:
+    nodes: [rtx-3090]
+    total_vram_gb: 24
+    total_tflops_fp16_tensor: 71
+    workloads: [vllm-serving, flash-attn-3, exllama, qlora]
+    preferred_model_formats: [gguf, awq, gptq, safetensors-pytorch]
 
-  prefill:
-    enabled: true
-    min_batch_size: 4     # below this, use Metal decode instead
-    max_sequence_length: 2048
-    chain_depth: 32       # 32+ ops for 94% utilization
+  cpu:
+    nodes: [beast, m3-ultra, m4-max-128, m4-max-36, m3-24, m2-air]
+    workloads: [storage, embedding-legacy, rerank, serving-orchestration]
 
-  training:
-    pipeline: dynamic     # options: static, dynamic, disabled
-    kernels_per_layer: 10 # dynamic pipeline shared kernels
-    weight_transport: iosurface  # weights packed in spatial dims
+# ─── Totals ──────────────────────────────────────────────────────────────────
+totals:
+  apple_ring_nodes: 4
+  cuda_nodes: 1
+  unified_memory_gb: 284
+  cuda_vram_gb: 24
+  ane_tflops_fp16: 85
+  apple_gpu_tflops_fp16: 108
+  cuda_tflops_fp16_tensor: 71
+  combined_tflops_fp16: 264
 
-# ─── DirectReduce configuration ──────────────────────────────────────
+# ─── TurboQuant + Grove ──────────────────────────────────────────────────────
+# See configs/turboquant_config.json for the live config.
+# This block declares participation per-node.
+turboquant:
+  enabled_on: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+  kv_cache_dir: ~/.turboquant/kv-cache
+  bits: 4
+  fp16_sink_size: 128
+  compress_after: 128
 
-directreduce:
-  enabled: true
-  port: 9092
-
-  gatekeeper:
-    throughput_threshold_bytes: 65536  # chunks > 64KB → reduction path
-    backpressure_max_pending: 16
-
-  datadirector:
-    default_num_nodes: 3  # Mac nodes in the ring
-
-  compute_enhancer:
-    preferred_backend: ane    # options: ane, numpy, python
-    ane_qos: background       # never interrupt inference
-    fallback_backend: numpy
-
-  transport:
-    mac_to_mac: exo-rdma      # uses exo's MLX distributed RDMA
-    mac_to_beast: odinlink    # native OdinLink TB4 DMA
-    beast_fallback: tcp       # if OdinLink not available
-
-# ─── OdinLink transport configuration ────────────────────────────────
-
-odinlink:
-  # Beast Linux only — Mac nodes use exo's native RDMA
-  beast_driver: odl_tb5.ko
-  ring_size: 4096        # 16 MB per batch
-  batch_mode: throughput  # for large gradient chunks
-  dma_buf_zero_copy: true
-
-  rccl_plugin:
-    enabled: true
-    stats_path: /run/odl_tb5/rccl_stats
-
-# ─── Routing policy ─────────────────────────────────────────────────
-
-routing:
-  local_inference:
-    match: [chat, routine]
-    target: exo.models.core.primary
-    engine: ane-prefill  # ANE for prefill, Metal for decode
-
-  ane_training:
-    match: [embedding_train, tiny_finetune, kernel_benchmark]
-    target: ane-worker
-    engine: ane-dynamic-pipeline
-
-  collective_sync:
-    match: [all_reduce, gradient_sync, state_sync]
-    target: directreduce
-    prefer_node: beast-linux  # RDMA-native reduction
-    fallback: ane-background  # ANE ComputeEnhancer at background QoS
-
-  hosted_heavy:
-    match: [long_context, multi_tool_complex, high_reasoning]
-    target: exo.models.fallbacks[0]
-
-  failover:
-    on_local_error: true
-    on_timeout_ms: 12000
-    fallback_chain: exo.models.fallbacks
-
-# ─── Monitoring ──────────────────────────────────────────────────────
-
-monitoring:
-  metrics_port: 9100
-  collect:
-    - ane_utilization_pct
-    - ane_dispatch_latency_ms
-    - directreduce_reduction_ms
-    - tb4_bandwidth_gbps
-    - tb4_latency_us
-    - node_memory_used_gb
-    - cluster_aggregate_tflops
-  dashboard: exo  # use exo's built-in dashboard at :52415
+grove:
+  enabled_on: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+  tb4_nodes: [m4-max-128, m4-max-36, m3-24]    # connected via TB
+  wifi_nodes: []                                # none currently — M2 Air is off-ring
+  tb4_params: { chunk_size: 8192, topk: 256, use_dct: false, H: 50 }
+  wifi_params: { chunk_size: 4096, topk: 64, use_dct: true, H: 200 }

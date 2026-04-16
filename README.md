@@ -1,252 +1,258 @@
 # STAR PLATINUM CLUSTER
 
-> RavenX Supercomputer — RDMA + ANE + DirectReduce unified compute fabric.
+**RavenX Supercomputer** — a dual-brain Apple Silicon + CUDA compute fabric.
+RDMA over Thunderbolt, Apple Neural Engine direct compute, DirectReduce offload, and an optional NVIDIA sidecar for CUDA-native workloads.
 
-The first local-first AI supercomputer built from consumer Apple hardware. Unifies RDMA over Thunderbolt, Apple Neural Engine direct compute, and offloaded all-reduce into a distributed training and inference platform.
+Built from consumer Apple hardware with a Thunderbolt 5 eGPU extension for CUDA inference. Local-first. No cloud.
 
-## Cluster hardware
+---
 
-| Node | Chip | Memory | ANE TFLOPS | GPU TFLOPS | TB | Storage | Role |
-|------|------|--------|-----------|-----------|-----|---------|------|
-| **M4 Max** MBP 14" | Apple M4 Max | 128 GB | 19.0 | ~54 | 3×TB5 (120G) | 1 TB | Brain — scheduler, core model, primary compute |
-| **M1 Pro** MBP 16" | Apple M1 Pro | 16 GB | 11.0 | ~5 | 3×TB4 (40G) | 500 GB | ANE compute — ring hop 2, 11T ANE |
-| **iMac Pro** 2017 | Xeon W-2140B | 32 GB | 0 | ~22 (Vega) | 4×TB3 (40G) | 1 TB | Control plane — dashboard, GPU compute |
-| **M2 Pro** MBP 16" | Apple M2 Pro | 16 GB | 7.9 | ~14 | 3×TB4 (40G) | 500 GB | ANE node — tensor parallel shard |
-| **M3** MBP 14" | Apple M3 | 24 GB | 9.0 | ~7 | 2×TB4 (40G) | 2 TB | ANE worker — pipeline parallel, model cache |
-| **Beast** Mac Pro 2013 | Xeon E5-1680 v2 | 64 GB | 0 | — | TB2 (dead) | 1 TB | Docker host — storage, software services |
-| **M2 Air** 2022 | Apple M2 | — | ~7.9 | — | 2×USB4 | — | SSH remote access + OpenClaw |
+## Fleet
 
-**Totals (5-node RDMA ring):** 216 GB unified memory | **46.9 ANE TFLOPS** | ~102 GPU TFLOPS FP16
+| # | Node | Chip | Memory | Cores (CPU / GPU / ANE) | Role |
+|---|------|------|--------|------------------------|------|
+| 1 | **Mac Studio** | Apple M3 Ultra | 96 GB | 28 / 60 / 32 | **Brain A** — OpenClaw, scheduler, orchestration (headless) |
+| 2 | **MBP 14"** | Apple M4 Max | 128 GB | 16 / 40 / 16 | **Brain B** — heavy inference, training (headless) |
+| 3 | **MacBook** | Apple M3 | 24 GB | 8 / 10 / 16 | Worker — pipeline parallel, model cache |
+| 4 | **Mac Studio** (incoming) | Apple M4 Max | 36 GB | 14 / 32 / 16 | Worker — ANE node, tensor parallel shard |
+| 5 | **Sonnet Breakaway Box** (incoming) | NVIDIA RTX 3090 | 24 GB VRAM | — / — / — | **CUDA sidecar** — vLLM/exllama, fine-tuning |
+| 6 | **Mac Pro 2013** (Linux) | Xeon E5-1680 v2 | 64 GB | 8 / — / — | File server — storage, Docker services, `rdma-core` userspace (Tailscale + 4× TB3, not on TB ring) |
+| 7 | **M2 Air** | Apple M2 | 16 GB | 10 / 10 / 16 | Remote SSH access + OpenClaw client |
+
+**Retired:** M1 Pro MBP, M2 Pro MBP, iMac Pro 2017 — sold to fund cluster expansion (more 3090s or an RTX 5090).
+
+### Compute totals (5-node Apple ring + CUDA sidecar)
+
+| Resource | Total | Notes |
+|---|---|---|
+| Unified memory (Apple) | **284 GB** | Across M3 Ultra, M4 Max 128, M3 24, M4 Max 36 |
+| CUDA VRAM | **24 GB** | RTX 3090 |
+| ANE | **~80 TFLOPS FP16** | M3 Ultra (32-core) + 4× M-series ANE |
+| Apple GPU | **~90 TFLOPS FP16** | Combined Metal across ring |
+| CUDA | **~35 TFLOPS FP16** | 3090 (native CUDA, Flash Attention 3 ready) |
+| **Combined compute** | **~205 TFLOPS FP16** | Heterogeneous — scheduled by device class |
+
+---
 
 ## Physical topology
 
 ```
-          ┌──────────────────────────────────────────┐
-          │             TB5 (120G)                   │
-          ▼                TB4 (40G)                 │
-  ┌──────────────┐     ──────────────▶    ┌──────────────┐
-  │   M4 Max     │ ─────TB5→TB4, 40G────▶ │   M1 Pro     │
-  │  (brain)     │                        │  (ane-node)  │
-  │  128GB  19T  │ ◀────TB4→TB5, 40G───── │  16GB   11T  │
-  └──────┬───────┘                        └──────┬───────┘
-         │ TB5→TB4                               │ TB4→TB3
-         │  40G (ring close)                     │  40G
-         │                               ┌───────▼───────┐
-         │                               │   iMac Pro    │
-         │                               │  (control)    │
-         │                               │  32GB   0T    │
-         │                               │  Vega 22T GPU │
-         │                               └───────┬───────┘
-         │                                       │ TB3→TB4
-         │                                       │  40G
-  ┌──────▼───────┐                      ┌────────▼──────┐
-  │     M3       │ ◀─────TB4, 40G─────── │   M2 Pro     │
-  │  (ane-lite)  │                       │  (ane-node)  │
-  │  24GB    9T  │                       │  16GB   7.9T │
-  └──────────────┘                       └──────────────┘
+                           TB5 (120G) ──────► TB4 (40G)
 
-  Ring: M4 Max → M1 Pro → iMac Pro → M2 Pro → M3 → M4 Max
-  All links: 40 Gbps Thunderbolt
+              ┌──────────────────────┐
+              │   M3 Ultra (Brain A) │       ◄── 6× TB5 ports, hub
+              │   96GB · 32-ANE      │           OpenClaw lives here
+              │   60-GPU · 20P+8E CPU│
+              └──────┬───┬────┬──────┘
+                     │   │    │
+          TB5─TB4    │   │    │   TB5─TB4
+          120G       │   │    │   120G
+         ┌───────────┘   │    └────────────┐
+         │               │                 │
+         ▼               ▼                 ▼
+  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+  │ M4 Max 128  │  │ M4 Max 36   │  │   M3 24GB   │
+  │ (Brain B)   │  │ (worker)    │  │  (worker)   │
+  │ 40-GPU 16T  │  │ 32-GPU 16T  │  │ 10-GPU 16T  │
+  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+         │                │                │
+         └────────TB4 ring (40G) ──────────┘
 
-  ─── Ethernet / Tailscale (not on TB ring) ───────────────
+  ─── CUDA sidecar (TB5, off-ring) ────────────────────────
 
-  ┌─────────────┐          ┌─────────────┐
-  │   Beast     │          │   M2 Air    │
-  │  (Docker)   │          │   (SSH)     │
-  │  64GB 1GbE  │          │  remote     │
-  └─────────────┘          └─────────────┘
+         M3 Ultra ──TB5 80Gbps──► Sonnet Breakaway 850 T5
+                                  └─► RTX 3090 24GB VRAM
+                                      (Tiny Corp driver, CUDA compute only)
+
+  ─── Ethernet / Tailscale (out of band) ──────────────────
+
+         Beast (Mac Pro 2013, 64GB, 10GbE)    — file server, Docker
+         M2 Air                               — remote SSH
 ```
 
-4-node RDMA ring via Thunderbolt. Beast on Ethernet/Tailscale for Docker services and storage. M2 Air for remote SSH access.
+**Ring:** 4-node Apple Silicon RDMA over Thunderbolt (M3 Ultra ↔ M4 Max 128 ↔ M4 Max 36 ↔ M3 24 ↔ M3 Ultra).
+**Sidecar:** 3090 attached to M3 Ultra via TB5 (80 Gbps), CUDA-only, off-ring.
+**Out-of-band:** Beast (storage) and M2 Air (remote) on Tailscale/Ethernet, not on TB ring.
+
+---
+
+## Dual-brain design
+
+Star Platinum runs **two coordinated brains** instead of a single scheduler:
+
+| Brain | Chip | Responsibility |
+|---|---|---|
+| **Brain A** (M3 Ultra) | OpenClaw runtime, agent orchestration, routing policy, session state, memory, skills | Always-on. Light compute. Scheduler. |
+| **Brain B** (M4 Max 128) | Heavy model inference, training, prefill, long-context reasoning | Invoked by Brain A when a task needs muscle. |
+
+**Why split it:**
+- OpenClaw needs low-latency, always-on orchestration — that's the Studio's job.
+- Heavy inference monopolizes memory/compute — you don't want the orchestrator stalling behind a 70B generate.
+- The M4 Max 128 can fully commit to a big model (70B Q4 fits with room); the Studio never hangs.
+
+**Hand-off:** Brain A makes routing decisions. For anything above a size threshold (configurable, default 8B), Brain A dispatches to Brain B via exo. Smaller/faster models and tool-use loops run on Brain A directly.
+
+---
 
 ## Software stack
 
 | Layer | Component | What it does |
-|-------|-----------|-------------|
-| L5 | **[exo](https://github.com/DeadByDawn101/exo)** | Cluster scheduler — auto-discovery, topology-aware placement, RDMA ring detection, tensor/pipeline parallel, OpenAI/Claude/Ollama API |
-| L4 | **[ANE](https://github.com/DeadByDawn101/ANE)** compute | 19 TFLOPS/node via `_ANEClient` private APIs — prefill at real-time QoS, reduction at background QoS |
-| L3 | **DirectReduce** | Offloaded all-reduce — GateKeeper/DataDirector/ComputeEnhancer with ANE hardware acceleration |
-| L2 | Zero-copy memory | IOSurface-backed pinned regions (Mac) / `ibv_reg_mr` pattern — DMA-ready tensors |
-| L1 | **[OdinLink](https://github.com/DeadByDawn101/OdinLink-Five)** + exo RDMA | TB4/TB5 DMA ring transport — 40-120 Gbps, zero-copy, RCCL Net v7 plugin |
-| L0 | Hardware | Apple Silicon ANE + GPU + unified memory across Thunderbolt |
+|---|---|---|
+| L6 | **OpenClaw** | Agent runtime on Brain A — skills, sessions, routing, memory |
+| L5 | **exo** | Distributed scheduler — auto-discovery, topology-aware placement, tensor/pipeline parallel, OpenAI/Claude/Ollama API |
+| L4 | **Device routing** | Classifies jobs by device class: ANE / Metal / CUDA / CPU. See `configs/routing.yaml` |
+| L4a | **ANE compute** | 16–32 TFLOPS/node via `_ANEClient` private APIs |
+| L4b | **CUDA backend** | 3090 via Tiny Corp driver (Apple-approved, no SIP disable) — vLLM, exllama, Flash Attention 3 |
+| L3 | **DirectReduce** | Offloaded all-reduce at ANE background QoS — GateKeeper / DataDirector / ComputeEnhancer |
+| L3a | **TurboQuant-MLX** | KV cache compression (2.8× at 4-bit, near-lossless) |
+| L3b | **Grove-MLX** | Distributed training with autoresearch parameter discovery |
+| L2 | **Zero-copy memory** | IOSurface-backed pinned regions on Mac / `ibv_reg_mr` on Linux |
+| L1 | **OdinLink + exo RDMA** | TB4/TB5 DMA ring transport, RCCL Net v7 plugin |
+| L0 | **Hardware** | M3 Ultra + M4 Max ANE/GPU/unified memory; RTX 3090 via TB5 eGPU |
 
-## Key integrations
+---
 
-### ANE as cluster TFLOPS multiplier
+## Device routing (new)
 
-The ANE is not just for training — it is a 19 TFLOPS FP16 graph execution engine per node. At 32+ chained operations, ANE reaches 94% utilization. The cluster uses ANE for:
-- **Inference prefill** at real-time QoS (high throughput, batched)
-- **Gradient reduction** at background QoS (DirectReduce ComputeEnhancer)
-- **On-device training** via dynamic weight pipeline (weights in IOSurface spatial dims)
+With the 3090 in the fleet, Star Platinum now schedules by **device class** rather than node-uniform placement.
 
-ANE supports a 127-deep evaluation queue, enabling simultaneous inference + reduction on the same chip.
+```yaml
+# configs/routing.yaml (sketch)
+classes:
+  ane:
+    nodes: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+    workloads: [prefill, reduction, small-model-inference]
+  metal:
+    nodes: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+    workloads: [mlx-inference, fine-tune-lora]
+  cuda:
+    nodes: [rtx-3090]
+    workloads: [vllm-serving, flash-attn-3, exllama, fine-tune-qlora]
+    preferred_models: [*-gguf, *-awq, *-gptq]
+  cpu:
+    nodes: [beast]
+    workloads: [embedding, rerank, storage]
 
-### DirectReduce (IEEE IoT Journal 2025)
+routing:
+  default: metal
+  rules:
+    - when: model.format in [gguf, awq, gptq, safetensors-pytorch]
+      route: cuda
+    - when: model.format == mlx
+      route: metal
+    - when: task == "all-reduce"
+      route: ane
+```
 
-Software implementation of [DirectReduce: A Scalable Ring AllReduce Offloading Architecture for Torus Topologies](https://ieeexplore.ieee.org/document/11062587). Three-stage pipeline:
-- **GateKeeper**: routes chunks to reduction vs. packetization path
-- **DataDirector**: classifies incoming chunks as intermediate vs. final
-- **ComputeEnhancer**: executes reduction ops on ANE background queue
+---
 
-Up to 1.98x all-reduce latency reduction in ring topologies.
+## Roadmap
 
-### exo scheduler
+| Phase | Status | Description |
+|---|---|---|
+| 1. exo cluster bringup | ✅ done | exo on all ring nodes, TB RDMA, 4-node ring verified |
+| 2. ANE compute backend | ✅ done | ANE dispatch wired into exo runner |
+| 3. DirectReduce v1 | ✅ done | ANE-accelerated gradient reduction at background QoS |
+| 4. Dual-brain split | 🚧 in progress | OpenClaw on M3 Ultra, heavy inference on M4 Max 128 |
+| 5. **M4 Max 36 onboarding** | 📦 hardware incoming | Slot into ring as 5th Apple node, update exo/TurboQuant configs |
+| 6. **3090 CUDA sidecar** | 📦 hardware incoming | Tiny Corp driver install, vLLM/exllama setup, device-class router |
+| 7. Unified training | ⏳ planned | Distributed forward/backward across ANE ring + CUDA sidecar |
+| 8. Hardening | ⏳ planned | Metrics, failover, monitoring dashboard |
+| 9. Public release | ⏳ planned | Docs, benchmarks, packaging |
 
-Replaces the original custom scheduler with [exo](https://github.com/DeadByDawn101/exo) production-grade orchestration:
-- Automatic mDNS device discovery via libp2p
-- Topology-aware model placement with RDMA cycle detection
-- Tensor parallel (1.8x on 2 devices, 3.2x on 4 devices)
-- Pipeline parallel with memory-proportional layer allocation
-- Master election via distributed consensus
+---
+
+## TurboQuant + Grove integration
+
+Star Platinum integrates [TurboQuant-MLX](https://github.com/DeadByDawn101/turboquant-mlx) (KV cache compression) and [Grove-MLX](https://github.com/DeadByDawn101/grove-mlx) (distributed training with autoresearch).
+
+**TurboQuant KV compression:**
+
+| Bits | Cosine sim | Compression | Use case |
+|---|---|---|---|
+| 4-bit | 0.9939 | 2.8× | Production inference (recommended) |
+| 3-bit | 0.9723 | 2.8× | Memory-constrained |
+| 2-bit | 0.8572 | 2.8× | Extreme compression |
+
+Features: polar coordinate quantization, QJL residual correction, FP16 attention sinks (first 128 tokens uncompressed), persistent KV cache (135× faster than reprocessing — 7.5ms load vs 1010ms recompute).
+
+**Grove autoresearch (2026-03-26 winner):** `wifi-raw` — chunk_size=4096, topk=64, use_dct=False, H=200. 5933 MB/s with 31.2× compression on mixed TB4/WiFi topology.
+
+See `configs/turboquant_config.json` for production config.
+
+---
 
 ## Repository structure
 
 ```
 star-platinum-cluster/
 ├── configs/
-│   ├── routing.yaml              # Model/resource routing policy
-│   └── supercomputer.yaml        # Full cluster config (all nodes, all layers)
+│   ├── routing.yaml              # Device-class routing policy (NEW)
+│   ├── supercomputer.yaml        # Full cluster config
+│   └── turboquant_config.json    # KV compression settings
 ├── docs/
-│   ├── ARCHITECTURE.md           # Cluster topology + rollout plan
+│   ├── ARCHITECTURE.md           # Cluster topology + rollout
 │   ├── HARDWARE-REGISTRY.md      # Exact specs for every node
-│   ├── DIRECTREDUCE-ADAPTATION.md # DirectReduce paper application
-│   ├── CLUSTER-BRINGUP.md        # Step-by-step cluster startup
-│   ├── NODE-ONBOARDING.md        # Node registration flow
-│   ├── HERETIC-SETUP.md          # Local gpt-oss-20b-heretic worker
-│   ├── LINUX-RDMA-BEAST.md       # Beast Linux integration
-│   └── REPO-INTEL.md             # External repo scan
+│   ├── DUAL-BRAIN.md             # Brain A / Brain B split (NEW)
+│   ├── CUDA-SIDECAR.md           # 3090 + Tiny Corp setup (NEW)
+│   ├── DIRECTREDUCE-ADAPTATION.md
+│   ├── CLUSTER-BRINGUP.md
+│   └── NODE-ONBOARDING.md
 ├── services/
-│   ├── scheduler/main.py         # Policy router (legacy, replaced by exo)
-│   ├── ane_worker/main.py        # ANE job wrapper
-│   ├── ane_engine/ane_compute.py  # ANE compute backend for exo integration
-│   ├── directreduce/main.py      # All-reduce v0 (software)
-│   ├── directreduce/main_v1.py   # All-reduce v1 (ANE-accelerated)
-│   └── heretic_worker/main.py    # gpt-oss-20b-heretic local model
+│   ├── scheduler/main.py         # Legacy (replaced by exo)
+│   ├── ane_engine/ane_compute.py # ANE backend for exo
+│   ├── cuda_engine/              # CUDA sidecar backend (NEW)
+│   ├── directreduce/main_v1.py   # ANE-accelerated all-reduce
+│   └── openclaw/                 # Brain A runtime (NEW)
 └── scripts/
-    ├── cluster_up.sh             # Start all local services
-    ├── cluster_down.sh           # Stop all services
-    ├── cluster_health.sh         # Health check
-    ├── beast_rdma_bootstrap.sh   # Beast RDMA setup
-    └── benchmark_directreduce.py # Correctness/perf harness
+    ├── cluster_up.sh
+    ├── cluster_down.sh
+    ├── cluster_health.sh
+    ├── cuda_sidecar_bringup.sh   # Tiny Corp driver + vLLM (NEW)
+    └── benchmark_directreduce.py
 ```
+
+---
 
 ## Quick start
 
 ```bash
-# Start legacy local services (scheduler + directreduce + ane_worker)
+# Start exo on every ring node
+uv run exo    # http://localhost:52415
+
+# Bring up Brain A (OpenClaw) on M3 Ultra
 ./scripts/cluster_up.sh
 
-# Health check
+# Health check the full fleet
 ./scripts/cluster_health.sh
 
-# Benchmark DirectReduce v1 (ANE-accelerated when available)
-python3 services/directreduce/main_v1.py &
-python3 scripts/benchmark_directreduce.py
-
-# Start exo on each node (replaces legacy scheduler)
-uv run exo  # runs at http://localhost:52415
+# Bring up the 3090 CUDA sidecar (when hardware arrives)
+./scripts/cuda_sidecar_bringup.sh
 ```
+
+---
 
 ## Companion repositories
 
 | Repo | Purpose |
-|------|---------|
+|---|---|
 | [exo](https://github.com/DeadByDawn101/exo) | Distributed AI scheduler with RDMA over Thunderbolt |
 | [OdinLink-Five](https://github.com/DeadByDawn101/OdinLink-Five) | TB4/TB5 DMA ring driver + RCCL plugin |
 | [ANE](https://github.com/DeadByDawn101/ANE) | Apple Neural Engine direct compute + training |
-| [rdma-core](https://github.com/DeadByDawn101/rdma-core) | Linux RDMA userspace stack (Beast node reference) |
-
-## Roadmap
-
-1. **Phase 1** — exo cluster bringup: install exo on all ring nodes, configure TB RDMA, verify 4-node ring
-2. **Phase 2** — ANE compute backend: wire ANE dispatch into exo runner protocol
-3. **Phase 3** — DirectReduce v1: ANE-accelerated gradient reduction at background QoS
-4. **Phase 4** — Unified training: distributed forward/backward across ANE ring with DirectReduce sync
-5. **Phase 5** — Hardening: metrics, failover, monitoring dashboard
-6. **Phase 6** — Public release: documentation, benchmarks, packaging
-
-## TurboQuant + Grove Integration
-
-Star Platinum now integrates two powerful MLX libraries for distributed inference optimization:
-
-### TurboQuant-MLX
-
-KV cache compression that achieves near-optimal rate-distortion tradeoff with zero accuracy loss.
-
-| Bits | Cosine Sim | Compression | Use Case |
-|------|------------|-------------|----------|
-| 4-bit | 0.9939 | 2.8x | Production inference (recommended) |
-| 3-bit | 0.9723 | 2.8x | Memory-constrained |
-| 2-bit | 0.8572 | 2.8x | Extreme compression |
-
-**Features:**
-- **Polar coordinate quantization** — preserves attention patterns
-- **QJL residual correction** — recovers inner product accuracy
-- **FP16 attention sinks** — keeps first 128 tokens uncompressed
-- **Persistent KV cache** — 135x faster than reprocessing (7.5ms load vs 1010ms recompute)
-
-### Grove-MLX
-
-Distributed training with exo bridge and autoresearch parameter discovery.
-
-**Autoresearch Results (2026-03-26):**
-- Winner: `wifi-raw` — chunk_size=4096, topk=64, use_dct=False, H=200
-- Throughput: 5933 MB/s with 31.2x compression
-- Optimized for Star Platinum's mixed TB4/WiFi topology
-
-### Configuration
-
-Production config in `configs/turboquant_config.json`:
-
-```json
-{
-  "turboquant": {
-    "r_bits": 4,
-    "theta_bits": 4,
-    "fp16_sink_size": 128,
-    "compress_after": 128
-  },
-  "grove": {
-    "tb4_nodes": ["brain", "m3", "m1pro"],
-    "wifi_nodes": ["m2pro"],
-    "tb4_params": {"chunk_size": 8192, "topk": 256, "use_dct": false, "H": 50},
-    "wifi_params": {"chunk_size": 4096, "topk": 64, "use_dct": true, "H": 200}
-  },
-  "persistence": {
-    "bits": 4,
-    "cache_dir": "~/.turboquant/kv-cache",
-    "max_ssd_gb": 50
-  }
-}
-```
-
-### Scripts
-
-```bash
-# Check TurboQuant status on all nodes
-python3 scripts/integrate_turboquant.py --check-only
-
-# Full integration (setup cache dirs, apply exo patch, sync to workers)
-python3 scripts/integrate_turboquant.py --apply-patch --sync
-
-# Run autoresearch benchmark
-python3 scripts/run_autoresearch.py --rounds 5
-
-# Benchmark only (no Grove autoresearch)
-python3 scripts/run_autoresearch.py --turboquant-only
-```
-
-### Companion Repositories
-
-| Repo | Purpose |
-|------|---------|
 | [turboquant-mlx](https://github.com/DeadByDawn101/turboquant-mlx) | KV cache compression for Apple Silicon |
 | [grove-mlx](https://github.com/DeadByDawn101/grove-mlx) | Distributed training with autoresearch |
+| [rdma-core](https://github.com/DeadByDawn101/rdma-core) | Linux RDMA userspace (reference) |
+
+---
 
 ## References
 
-- [DirectReduce: A Scalable Ring AllReduce Offloading Architecture for Torus Topologies](https://ieeexplore.ieee.org/document/11062587) (IEEE IoT Journal, 2025)
-- [Inside the M4 Apple Neural Engine](https://maderix.substack.com/p/inside-the-m4-apple-neural-engine) (maderix, 2026)
-- [AppleNeuralEngine.framework Runtime Headers](https://github.com/nst/iOS-Runtime-Headers/tree/master/PrivateFrameworks/AppleNeuralEngine.framework)
-- [TurboQuant: Cost-Effective KV-Cache Compression](https://arxiv.org/abs/2504.19874) (arXiv, 2025)
-- [PolarQuant: Rotation-Based KV Cache Quantization](https://arxiv.org/abs/2502.02617) (arXiv, 2025)
+- DirectReduce: A Scalable Ring AllReduce Offloading Architecture for Torus Topologies (IEEE IoT Journal, 2025)
+- Inside the M4 Apple Neural Engine (maderix, 2026)
+- TurboQuant: Cost-Effective KV-Cache Compression (arXiv, 2025)
+- PolarQuant: Rotation-Based KV Cache Quantization (arXiv, 2025)
+- Tiny Corp eGPU driver for Apple Silicon (Apple-approved, April 2026)
+
+---
+
+**Built with 🖤 by [RavenX AI](https://github.com/DeadByDawn101)**
