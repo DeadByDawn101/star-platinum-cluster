@@ -56,7 +56,7 @@ Single source of truth for Star Platinum cluster hardware. Update this file when
 | Role | Pipeline parallel worker, model cache |
 | exo role | ANE worker |
 
-### Node 4 — `m4-max-36` (incoming)
+### Node 4 — `m1-max-64` (active)
 
 | Attribute | Value |
 |---|---|
@@ -65,14 +65,14 @@ Single source of truth for Star Platinum cluster hardware. Update this file when
 | CPU | 14-core (10P + 4E) |
 | GPU | 32-core Metal |
 | Neural Engine | 16-core (~19 TFLOPS FP16) |
-| Memory | 36 GB unified |
+| Memory | 64 GB unified |
 | Storage | 512 GB SSD |
 | Ports | 4× Thunderbolt 5, HDMI, 10GbE |
 | Role | Tensor parallel shard, ANE worker |
 | exo role | ANE worker |
-| Status | **Hardware incoming** |
+| Status | **Hardware active** |
 
-### Node 5 — `rtx-3090` (CUDA sidecar, incoming)
+### Node 5 — `rtx-3090` (CUDA sidecar, active)
 
 | Attribute | Value |
 |---|---|
@@ -86,7 +86,7 @@ Single source of truth for Star Platinum cluster hardware. Update this file when
 | Driver | Tiny Corp eGPU driver (Apple-approved, compiled via Docker) |
 | Role | CUDA-native inference (vLLM, exllama), QLoRA fine-tuning |
 | exo role | Device-class `cuda` — routed via `configs/routing.yaml` |
-| Status | **Hardware incoming** |
+| Status | **Hardware active** |
 | Notes | Not on TB RDMA ring. No macOS display output — compute-only. |
 
 ### Node 6 — `beast`
@@ -171,7 +171,7 @@ Sidecar: **M3 Ultra ↔ 3090** via TB5, CUDA-only, off-ring.
 
 ## Change log
 
-- **2026-04-16** — Major fleet rewrite. M3 Ultra promoted to Brain A. M4 Max 128 → Brain B. M4 Max 36 added (incoming). RTX 3090 added as CUDA sidecar (incoming). M1 Pro, M2 Pro, iMac Pro retired. Beast confirmed Linux on TB3 (4 ports, not on ring).
+- **2026-04-16** — Major fleet rewrite. M3 Ultra promoted to Brain A. M4 Max 128 → Brain B. M4 Max 36 added (active). RTX 3090 added as CUDA sidecar (active). M1 Pro, M2 Pro, iMac Pro retired. Beast confirmed Linux on TB3 (4 ports, not on ring).
 - **2026-03-26** — Grove autoresearch run: `wifi-raw` config wins for mixed-topology.
 - **2026-01-XX** — TurboQuant-MLX PR #1 merged into TriAttention.
 - **2025-12-XX** — exo scheduler replaced legacy custom scheduler.

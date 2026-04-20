@@ -72,21 +72,21 @@ nodes:
     role: brain-b
     device_classes: [ane, metal, cpu]
     ring_member: true
-    ring_neighbors: [m3-ultra, m4-max-36]
+    ring_neighbors: [m3-ultra, m1-max-64]
 
-  m4-max-36:
-    status: incoming
-    chassis: mac-studio-2025
-    chip: apple-m4-max
-    cpu_cores: 14
+  m1-max-64:
+    status: active
+    chassis: mbp-16-recycled
+    chip: apple-m1-max
+    cpu_cores: 10
     gpu_cores: 32
     ane_cores: 16
-    ane_tflops_fp16: 19
-    gpu_tflops_fp16: 20
-    memory_gb: 36
-    storage_tb: 0.5
-    tb_ports: { tb5: 4 }
-    ethernet: 10gbe
+    ane_tflops_fp16: 11
+    gpu_tflops_fp16: 13
+    memory_gb: 64
+    storage_tb: 1
+    tb_ports: { tb4: 3 }
+    ethernet: 1gbe
     headless: false
     role: worker
     device_classes: [ane, metal, cpu]
@@ -108,10 +108,10 @@ nodes:
     role: worker
     device_classes: [ane, metal, cpu]
     ring_member: true
-    ring_neighbors: [m4-max-36, m3-ultra]
+    ring_neighbors: [m1-max-64, m3-ultra]
 
   rtx-3090:
-    status: incoming
+    status: active
     chassis: sonnet-breakaway-850-t5
     gpu: nvidia-rtx-3090
     vram_gb: 24
@@ -164,13 +164,13 @@ retired:
 device_classes:
 
   ane:
-    nodes: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+    nodes: [m3-ultra, m4-max-128, m1-max-64, m3-24]
     total_tflops_fp16: 85
     workloads: [prefill, all-reduce, small-model-inference, embedding]
     qos: [real-time, background]
 
   metal:
-    nodes: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+    nodes: [m3-ultra, m4-max-128, m1-max-64, m3-24]
     total_tflops_fp16: 108
     workloads: [mlx-inference, lora-fine-tune]
 
@@ -182,14 +182,14 @@ device_classes:
     preferred_model_formats: [gguf, awq, gptq, safetensors-pytorch]
 
   cpu:
-    nodes: [beast, m3-ultra, m4-max-128, m4-max-36, m3-24, m2-air]
+    nodes: [beast, m3-ultra, m4-max-128, m1-max-64, m3-24, m2-air]
     workloads: [storage, embedding-legacy, rerank, serving-orchestration]
 
 # ─── Totals ──────────────────────────────────────────────────────────────────
 totals:
   apple_ring_nodes: 4
   cuda_nodes: 1
-  unified_memory_gb: 284
+  unified_memory_gb: 312        # 96+128+64+24
   cuda_vram_gb: 24
   ane_tflops_fp16: 85
   apple_gpu_tflops_fp16: 108
@@ -200,15 +200,15 @@ totals:
 # See configs/turboquant_config.json for the live config.
 # This block declares participation per-node.
 turboquant:
-  enabled_on: [m3-ultra, m4-max-128, m4-max-36, m3-24]
+  enabled_on: [m3-ultra, m4-max-128, m1-max-64, m3-24]
   kv_cache_dir: ~/.turboquant/kv-cache
   bits: 4
   fp16_sink_size: 128
   compress_after: 128
 
 grove:
-  enabled_on: [m3-ultra, m4-max-128, m4-max-36, m3-24]
-  tb4_nodes: [m4-max-128, m4-max-36, m3-24]    # connected via TB
+  enabled_on: [m3-ultra, m4-max-128, m1-max-64, m3-24]
+  tb4_nodes: [m4-max-128, m1-max-64, m3-24]    # connected via TB
   wifi_nodes: []                                # none currently — M2 Air is off-ring
   tb4_params: { chunk_size: 8192, topk: 256, use_dct: false, H: 50 }
   wifi_params: { chunk_size: 4096, topk: 64, use_dct: true, H: 200 }
